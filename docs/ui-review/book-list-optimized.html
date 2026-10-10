@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>常用账本·UI精修预览</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --orange: #f47b20;
+      --orange-soft: #fff7f2;
+      --surface: #fffbfe;
+      --ink: #282328;
+      --muted: #716971;
+      --outline: #e5dde2;
+      --page-x: 20px;
+    }
+    * { box-sizing: border-box; }
+    html { background: #f1eef0; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: start center;
+      background: #f1eef0;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; -webkit-tap-highlight-color: transparent; }
+    .phone {
+      width: min(100%, 390px);
+      height: 100vh;
+      min-height: 680px;
+      overflow: hidden;
+      background: var(--surface);
+      box-shadow: 0 20px 60px rgba(50,40,48,.14);
+    }
+    header {
+      height: 68px;
+      display: flex;
+      align-items: center;
+      padding: 8px 12px 4px 8px;
+      background: var(--surface);
+    }
+    .back {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: #464046;
+      cursor: pointer;
+    }
+    .back:hover { background: #f3eef2; }
+    .back svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    h1 { margin: 0 0 0 4px; font-size: 23px; line-height: 29px; font-weight: 760; letter-spacing: -.02em; }
+    main {
+      height: calc(100% - 68px);
+      overflow: auto;
+      padding: 18px var(--page-x) 28px;
+      scrollbar-width: thin;
+      scrollbar-color: #c7bfc5 transparent;
+    }
+    main::-webkit-scrollbar { width: 4px; }
+    main::-webkit-scrollbar-thumb { border-radius: 4px; background: #c7bfc5; }
+    .books { display: grid; gap: 14px; }
+    .book-card {
+      position: relative;
+      min-height: 154px;
+      padding: 18px 18px 14px;
+      border: 1px solid var(--outline);
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 3px 10px rgba(48,39,46,.045);
+      cursor: pointer;
+      transition: border-color 150ms ease, background 150ms ease, transform 120ms ease;
+    }
+    .book-card:hover { border-color: #d5cbd1; background: #fffdfd; }
+    .book-card:active { transform: scale(.995); }
+    .book-card.current {
+      border-color: #ead9cf;
+      background: var(--orange-soft);
+      box-shadow: none;
+    }
+    .topline { display: flex; align-items: flex-start; gap: 12px; }
+    .book-copy { min-width: 0; flex: 1; }
+    .book-name {
+      margin: 0;
+      overflow: hidden;
+      color: var(--ink);
+      font-size: 17px;
+      line-height: 24px;
+      font-weight: 720;
+      letter-spacing: -.01em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .table-name { margin: 5px 0 0; color: #615960; font-size: 14px; line-height: 20px; font-weight: 520; }
+    .badge {
+      height: 30px;
+      padding: 0 11px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #a39ba1;
+      border-radius: 10px;
+      background: rgba(255,255,255,.68);
+      color: #4c454b;
+      font-size: 13px;
+      line-height: 18px;
+      font-weight: 680;
+      white-space: nowrap;
+    }
+    .meta { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 18px; font-variant-numeric: tabular-nums; }
+    .actions { display: flex; align-items: center; gap: 4px; margin: 10px 0 -4px -8px; }
+    .text-action {
+      min-height: 40px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--orange);
+      font-size: 14px;
+      line-height: 20px;
+      font-weight: 660;
+      cursor: pointer;
+    }
+    .text-action:hover { background: rgba(244,123,32,.08); }
+    .text-action.danger { color: #a74a32; }
+    .page-actions { display: grid; gap: 10px; margin-top: 22px; }
+    .primary, .secondary { width: 100%; height: 52px; border-radius: 16px; font-size: 16px; font-weight: 700; cursor: pointer; }
+    .primary {
+      border: 0;
+      background: var(--orange);
+      color: white;
+      box-shadow: 0 8px 18px rgba(244,123,32,.15);
+    }
+    .secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid #948c92;
+      background: transparent;
+      color: var(--orange);
+    }
+    .secondary:hover { background: var(--orange-soft); }
+    .secondary svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+    .helper { margin: 14px 2px 0; color: var(--muted); font-size: 12px; line-height: 18px; }
+    .toast {
+      position: absolute;
+      z-index: 3;
+      top: 82px;
+      left: 50%;
+      max-width: calc(100% - 40px);
+      padding: 12px 16px;
+      border-radius: 14px;
+      transform: translate(-50%, -10px);
+      background: #ffe2bf;
+      color: #4b2a12;
+      box-shadow: 0 8px 22px rgba(70,44,25,.18);
+      font-size: 14px;
+      font-weight: 580;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    button:focus-visible, .book-card:focus-visible { outline: 3px solid rgba(244,123,32,.22); outline-offset: 2px; }
+    @media (max-width: 420px) { body { display: block; } .phone { width: 100%; box-shadow: none; } }
+  </style>
+</head>
+<body>
+  <div class="phone" style="position:relative">
+    <header>
+      <button class="back" aria-label="返回"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></svg></button>
+      <h1>常用账本</h1>
+    </header>
+    <main>
+      <section class="books">
+        <article class="book-card current" tabindex="0" data-book="个人财务报表（2026年）">
+          <div class="topline"><div class="book-copy"><p class="book-name">个人财务报表（2026年）</p><p class="table-name">支出</p></div><span class="badge">当前</span></div>
+          <p class="meta">最近使用：2026/9/25 15:27</p>
+          <div class="actions"><button class="text-action" data-toast="正在打开飞书…">打开飞书</button><button class="text-action" data-toast="正在查看当前账本字段…">查看字段</button></div>
+        </article>
+        <article class="book-card" tabindex="0" data-book="截图记账测试">
+          <div class="topline"><div class="book-copy"><p class="book-name">截图记账测试</p><p class="table-name">数据表</p></div></div>
+          <p class="meta">最近使用：2026/9/21 20:43</p>
+          <div class="actions"><button class="text-action" data-toast="正在打开飞书…">打开飞书</button><button class="text-action danger" data-toast="原型预览：移除操作">移除</button></div>
+        </article>
+        <article class="book-card" tabindex="0" data-book="momo截图记账测试333">
+          <div class="topline"><div class="book-copy"><p class="book-name">momo截图记账测试333</p><p class="table-name">数据表</p></div></div>
+          <p class="meta">最近使用：2026/9/21 17:40</p>
+          <div class="actions"><button class="text-action" data-toast="正在打开飞书…">打开飞书</button><button class="text-action danger" data-toast="原型预览：移除操作">移除</button></div>
+        </article>
+        <article class="book-card" tabindex="0" data-book="截图记账测试222">
+          <div class="topline"><div class="book-copy"><p class="book-name">截图记账测试222</p><p class="table-name">数据表</p></div></div>
+          <p class="meta">最近使用：2026/9/20 19:47</p>
+          <div class="actions"><button class="text-action" data-toast="正在打开飞书…">打开飞书</button><button class="text-action danger" data-toast="原型预览：移除操作">移除</button></div>
+        </article>
+      </section>
+      <section class="page-actions">
+        <button class="primary" data-toast="进入连接多维表格页面">连接新的多维表格</button>
+        <button class="secondary" data-toast="正在同步当前账本的字段和选项…"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"></path><path d="M20 4v7h-7"></path></svg>刷新当前账本</button>
+      </section>
+      <p class="helper">最多保留 10 个常用账本。移除快捷方式不会删除飞书表格或账目。</p>
+    </main>
+    <div id="toast" class="toast"></div>
+  </div>
+  <script>
+    const toast = document.querySelector('#toast');
+    let timer;
+    function showToast(message) { toast.textContent = message; toast.classList.add('show'); clearTimeout(timer); timer = setTimeout(() => toast.classList.remove('show'), 1800); }
+    document.addEventListener('click', event => {
+      const action = event.target.closest('[data-toast]');
+      if (action) { event.stopPropagation(); showToast(action.dataset.toast); return; }
+      const card = event.target.closest('.book-card:not(.current)');
+      if (card) showToast(`切换到“${card.dataset.book}”`);
+    });
+  </script>
+</body>
+</html>

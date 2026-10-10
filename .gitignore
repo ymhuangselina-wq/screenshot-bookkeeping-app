@@ -1,0 +1,22 @@
+.DS_Store
+.idea/
+.gradle/
+**/build/
+local.properties
+*.env.local
+docs/internal/
+worker/node_modules/
+worker/.wrangler/
+worker/coverage/
+worker/.dev.vars
+worker/wrangler.toml
+
+# Local release artifacts. Publish selected APKs through GitHub Releases instead.
+*.apk
+*.zip
+
+
+.wrangler/
+**/.signing/
+**/*.jks
+**/*.keystore

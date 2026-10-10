@@ -1,0 +1,1310 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>截图记账 · 账本切换与管理交互原型</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --orange: #f47b20;
+      --orange-press: #dd6812;
+      --orange-soft: #fff5ed;
+      --surface: #fffbfe;
+      --canvas: #efebee;
+      --card: #fff;
+      --ink: #282328;
+      --muted: #716971;
+      --faint: #9b9299;
+      --line: #e3dce1;
+      --page-x: 20px;
+      --ease: cubic-bezier(.22,1,.36,1);
+      --page-motion: 320ms;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--canvas); }
+    body {
+      min-height: 100vh;
+      display: grid;
+      place-items: start center;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    ::selection { color: #fff; background: var(--orange); }
+
+    .phone {
+      position: relative;
+      width: min(100%, 390px);
+      height: 100dvh;
+      min-height: 680px;
+      overflow: hidden;
+      background: var(--surface);
+      box-shadow: 0 22px 64px rgba(54,43,51,.15);
+    }
+    .viewport { position: absolute; inset: 0; overflow: hidden; }
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      transform: translateX(104%);
+      opacity: .7;
+      pointer-events: none;
+      transition: transform var(--page-motion) var(--ease), opacity var(--page-motion) var(--ease);
+      will-change: transform;
+    }
+    .screen.active { z-index: 2; transform: translateX(0); opacity: 1; pointer-events: auto; }
+    .screen.exit-left { transform: translateX(-24%); opacity: .45; }
+    .screen.back-enter { transform: translateX(-24%); }
+
+    .app-bar {
+      flex: 0 0 68px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px 4px var(--page-x);
+      background: rgba(255,251,254,.96);
+      border-bottom: 1px solid transparent;
+    }
+    .app-bar.compact { padding-left: 8px; }
+    .app-bar.manage-bar { padding-right: 8px; }
+    .app-bar.manage-bar .app-title { font-size: 21px; }
+    .app-bar.manage-bar .icon-button:not(.back) { width: 40px; height: 40px; }
+    .app-bar.manage-bar .icon-button:not(.back) svg { width: 20px; height: 20px; }
+    .app-title { margin: 0 auto 0 0; font-size: 23px; line-height: 29px; font-weight: 760; letter-spacing: -.025em; }
+    .icon-button {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      cursor: pointer;
+      transition: background 140ms ease, transform 120ms ease;
+    }
+    .icon-button:hover { background: #f3eef2; }
+    .icon-button:active { transform: scale(.92); }
+    .icon-button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .back svg { width: 25px; height: 25px; }
+    .header-action {
+      min-height: 40px;
+      padding: 0 9px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--orange);
+      font-size: 14px;
+      font-weight: 680;
+      cursor: pointer;
+    }
+    .header-action:hover { background: var(--orange-soft); }
+
+    .content {
+      min-height: 0;
+      flex: 1;
+      overflow: auto;
+      overscroll-behavior: contain;
+      padding: 14px var(--page-x) 28px;
+      scrollbar-width: thin;
+      scrollbar-color: #c7bfc5 transparent;
+    }
+    .content::-webkit-scrollbar { width: 4px; }
+    .content::-webkit-scrollbar-thumb { border-radius: 4px; background: #c7bfc5; }
+    .section-row { min-height: 40px; display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .section-row h2 { margin: 0 auto 0 0; color: #625b62; font-size: 14px; line-height: 20px; font-weight: 650; }
+    .text-action {
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 0 7px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--orange);
+      font-size: 14px;
+      font-weight: 680;
+      cursor: pointer;
+    }
+    .text-action:hover { background: var(--orange-soft); }
+    .text-action svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .current-card, .book-card {
+      border: 1px solid #eadfd9;
+      border-radius: 16px;
+      background: var(--orange-soft);
+    }
+    .current-card { min-height: 80px; padding: 14px 16px; cursor: pointer; transition: border-color 160ms ease, background 160ms ease, transform 130ms ease; }
+    .current-card:hover { border-color: #d8c9c1; background: #fff1e7; }
+    .current-card:active { transform: scale(.99); }
+    .book-name { margin: 0; color: var(--ink); font-size: 16px; line-height: 23px; font-weight: 720; letter-spacing: -.01em; }
+    .table-name { margin: 6px 0 0; color: #625b62; font-size: 14px; line-height: 20px; font-weight: 540; }
+
+    .field-section { margin-top: 22px; }
+    .fields { display: grid; gap: 14px; }
+    .field {
+      position: relative;
+      height: 56px;
+      margin: 0;
+      padding: 0 48px 0 16px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: #fff;
+    }
+    .field legend { position: absolute; top: -8px; left: 12px; padding: 0 5px; background: var(--surface); color: #6d656d; font-size: 12px; line-height: 16px; font-weight: 620; }
+    .field input { width: 100%; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 16px; }
+    .field input::placeholder { color: #aaa2aa; opacity: 1; }
+    .field-action { position: absolute; top: 50%; right: 8px; min-width: 40px; height: 40px; border: 0; border-radius: 10px; transform: translateY(-50%); background: transparent; color: var(--orange); font-size: 14px; font-weight: 680; }
+    .field-action svg { width: 17px; height: 17px; fill: none; stroke: #625b62; stroke-width: 2; }
+    .primary {
+      width: 100%;
+      height: 54px;
+      border: 0;
+      border-radius: 16px;
+      background: var(--orange);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 720;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(244,123,32,.15);
+      transition: background 140ms ease, transform 120ms ease;
+    }
+    .primary:hover { background: #ec7118; }
+    .primary:active { transform: scale(.985); background: var(--orange-press); }
+    .home-submit { margin-top: 30px; }
+    .helper { margin: 11px 0 0; color: #8b838b; text-align: center; font-size: 12px; line-height: 18px; }
+
+    .switch-content, .manage-content { display: flex; flex-direction: column; }
+    .context-note { margin: 0 0 14px; color: var(--muted); font-size: 13px; line-height: 20px; }
+    .book-list { display: grid; gap: 12px; }
+    .book-card {
+      position: relative;
+      min-height: 118px;
+      padding: 16px;
+      background: #fff;
+      box-shadow: 0 3px 10px rgba(48,39,46,.045);
+      transition: border-color 160ms ease, background 160ms ease, transform 130ms ease, box-shadow 160ms ease;
+    }
+    button.book-card { width: 100%; color: inherit; text-align: left; cursor: pointer; }
+    button.book-card:hover { border-color: #d6cbd1; background: #fffdfd; box-shadow: 0 7px 18px rgba(48,39,46,.075); }
+    button.book-card:active { transform: scale(.985); }
+    .book-card.current { background: var(--orange-soft); box-shadow: none; }
+    .card-top { display: flex; align-items: flex-start; gap: 12px; }
+    .book-copy { min-width: 0; flex: 1; }
+    .book-copy .book-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .status {
+      min-height: 28px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 0 9px;
+      border-radius: 9px;
+      background: #f2edef;
+      color: #655e64;
+      font-size: 12px;
+      font-weight: 680;
+      white-space: nowrap;
+    }
+    .status.current { background: #ffe4d0; color: #97450e; }
+    .status svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; }
+    .meta { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 18px; font-variant-numeric: tabular-nums; }
+    .switch-footer { position: sticky; bottom: -28px; margin: 18px calc(var(--page-x) * -1) -28px; padding: 14px var(--page-x) max(22px, env(safe-area-inset-bottom)); background: linear-gradient(180deg, rgba(255,251,254,0), var(--surface) 22%); }
+    .outline-button { width: 100%; height: 52px; border: 1px solid #9d959b; border-radius: 16px; background: var(--surface); color: var(--orange); font-size: 15px; font-weight: 700; cursor: pointer; }
+    .outline-button:hover { background: var(--orange-soft); }
+
+    .manage-card { min-height: 142px; padding-bottom: 10px; cursor: pointer; }
+    .manage-card:hover { border-color: #d6cbd1; background: #fffdfd; box-shadow: 0 7px 18px rgba(48,39,46,.075); }
+    .manage-card.current:hover { background: #fff1e7; }
+    .manage-card:active { transform: scale(.985); }
+    .manage-card:focus-visible { outline: 3px solid rgba(244,123,32,.24); outline-offset: 3px; }
+    .manage-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 10px -8px -2px;
+      padding-top: 8px;
+      border-top: 1px solid #eee7eb;
+    }
+    .manage-actions .text-action { position: relative; z-index: 1; padding: 0 9px; }
+    .field-discovery {
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 8px;
+      color: var(--orange);
+      font-size: 13px;
+      font-weight: 680;
+      pointer-events: none;
+    }
+    .field-discovery svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .field-list { display: grid; gap: 10px; }
+    .book-source {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+      padding: 14px 15px;
+      border: 1px solid #eadfd9;
+      border-radius: 15px;
+      background: var(--orange-soft);
+    }
+    .book-source-copy { min-width: 0; }
+    .book-source-label { margin: 0 0 5px; color: var(--muted); font-size: 11px; line-height: 16px; }
+    .book-source-name { margin: 0; overflow: hidden; color: var(--ink); font-size: 15px; line-height: 21px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .book-source-table { margin: 3px 0 0; color: #625b62; font-size: 12px; line-height: 18px; }
+    .source-action { min-height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border: 0; border-radius: 11px; background: rgba(244,123,32,.09); color: #c65d11; font-size: 13px; font-weight: 700; cursor: pointer; transition: background 140ms ease, transform 120ms ease; }
+    .source-action:hover { background: rgba(244,123,32,.15); }
+    .source-action:active { transform: scale(.97); }
+    .source-action:focus-visible { outline: 3px solid rgba(244,123,32,.22); outline-offset: 2px; }
+    .source-action svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .field-list-title { margin-bottom: 10px; }
+    .field-row { min-height: 66px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; padding: 11px 14px; border: 1px solid #eee5e9; border-radius: 14px; background: #fff; }
+    .field-row.dragging { opacity: .52; transform: scale(.985); }
+    .field-row.drag-over { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(244,123,32,.10); }
+    .field-info strong { display: block; font-size: 15px; line-height: 21px; font-weight: 680; }
+    .field-info span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 17px; }
+    .switch { position: relative; width: 42px; height: 26px; padding: 0; border: 0; border-radius: 15px; background: #d8d1d6; cursor: pointer; transition: background 180ms ease; }
+    .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(45,35,42,.25); transition: transform 220ms var(--ease); }
+    .switch.on { background: var(--orange); }
+    .switch.on::after { transform: translateX(16px); }
+    .field-control { display: flex; align-items: center; gap: 12px; }
+    .drag-handle { width: 40px; height: 48px; display: none; place-items: center; padding: 0; border: 0; border-radius: 11px; background: transparent; color: #938b91; cursor: grab; touch-action: none; }
+    .drag-handle:active { cursor: grabbing; background: #f3edf1; }
+    .six-dot-handle { width: 12px; height: 22px; display: grid; grid-template-columns: repeat(2, 4px); grid-template-rows: repeat(3, 4px); place-content: center; gap: 3px; }
+    .six-dot-handle i { width: 4px; height: 4px; display: block; border-radius: 50%; background: currentColor; }
+    .sort-note { display: none; margin: -2px 0 12px; color: var(--muted); font-size: 12px; line-height: 18px; }
+    .fields-screen.sorting .field-list { gap: 12px; }
+    .fields-screen.sorting .field-row { grid-template-columns: 1fr auto; padding-right: 9px; }
+    .fields-screen.sorting .drag-handle { display: grid; }
+    .fields-screen.sorting .sort-note { display: block; }
+    .field-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+    .field-actions .outline-button, .field-actions .primary { height: 48px; }
+    .field-actions.single { display: block; }
+
+    .sheet-scrim {
+      position: absolute;
+      z-index: 30;
+      inset: 0;
+      display: flex;
+      align-items: flex-end;
+      background: rgba(35,29,33,.34);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 220ms ease;
+    }
+    .sheet-scrim.open { opacity: 1; pointer-events: auto; }
+    .option-sheet {
+      width: 100%;
+      max-height: 78%;
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
+      overflow: hidden;
+      border-radius: 24px 24px 0 0;
+      background: var(--surface);
+      box-shadow: 0 -16px 44px rgba(45,36,42,.16);
+      transform: translateY(102%);
+      transition: transform 360ms var(--ease);
+    }
+    .sheet-scrim.open .option-sheet { transform: translateY(0); }
+    .sheet-handle { width: 34px; height: 4px; margin: 10px auto 6px; border-radius: 4px; background: #7d747b; }
+    .sheet-header { height: 58px; display: grid; grid-template-columns: 76px 1fr 76px; align-items: center; padding: 0 8px; }
+    .sheet-header h2 { margin: 0; text-align: center; font-size: 18px; line-height: 24px; }
+    .sheet-header button { height: 42px; border: 0; border-radius: 10px; background: transparent; color: var(--orange); font-size: 15px; font-weight: 680; cursor: pointer; }
+    .sheet-header button:hover { background: var(--orange-soft); }
+    .sheet-tools { display: grid; grid-template-columns: 1fr 48px; gap: 10px; padding: 8px 20px 14px; border-bottom: 1px solid var(--line); }
+    .sheet-search { height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border: 1px solid #d9d1d7; border-radius: 14px; background: #fff; transition: border-color 150ms ease, box-shadow 150ms ease; }
+    .sheet-search:focus-within { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(244,123,32,.08); }
+    .sheet-search svg { width: 20px; height: 20px; flex: none; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; }
+    .sheet-search input { width: 100%; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 15px; }
+    .sheet-search input::placeholder { color: #9a9299; opacity: 1; }
+    .sheet-add { width: 48px; height: 48px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 14px; background: var(--orange-soft); color: var(--orange); cursor: pointer; }
+    .sheet-add svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; }
+    .sheet-list { max-height: min(420px, 50vh); overflow: auto; }
+    .option-row { width: 100%; min-height: 62px; display: grid; grid-template-columns: 34px 1fr 42px; align-items: center; gap: 10px; padding: 0 10px 0 20px; border: 0; border-bottom: 1px solid var(--line); background: var(--surface); color: var(--ink); text-align: left; font-size: 16px; cursor: pointer; }
+    .option-row:hover { background: #fff7f1; }
+    .option-mark { width: 21px; height: 21px; display: grid; place-items: center; border: 2px solid #918990; border-radius: 50%; }
+    .option-row[data-multiple="true"] .option-mark { border-radius: 6px; }
+    .option-row.selected { background: var(--orange-soft); color: #7f3b0d; font-weight: 650; }
+    .option-row.selected .option-mark { border-color: var(--orange); background: var(--orange); box-shadow: inset 0 0 0 4px #fff; }
+    .option-row[data-multiple="true"].selected .option-mark { box-shadow: none; }
+    .option-row[data-multiple="true"].selected .option-mark::after { content: ""; width: 8px; height: 4px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: translateY(-1px) rotate(-45deg); }
+    .option-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .option-more { width: 42px; height: 42px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+    .option-more:hover { background: #eee8ec; }
+    .option-more svg { width: 20px; height: 20px; fill: currentColor; }
+    .sheet-empty { padding: 42px 20px; color: var(--muted); text-align: center; font-size: 14px; }
+    .option-menu { position: absolute; z-index: 32; right: 16px; bottom: 84px; width: 132px; display: none; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 10px 30px rgba(47,37,45,.18); }
+    .option-menu.open { display: block; }
+    .option-menu button { width: 100%; height: 40px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+    .option-menu button:hover { background: #f7f2f5; }
+    .option-menu .danger { color: #ba1a1a; }
+
+    .rename-scrim { position: absolute; z-index: 36; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(35,29,33,.38); opacity: 0; pointer-events: none; transition: opacity 180ms ease; }
+    .rename-scrim.open { opacity: 1; pointer-events: auto; }
+    .rename-dialog { width: 100%; padding: 20px; border-radius: 18px; background: #fff; box-shadow: 0 18px 48px rgba(45,36,42,.22); transform: translateY(10px) scale(.98); transition: transform 220ms var(--ease); }
+    .rename-scrim.open .rename-dialog { transform: translateY(0) scale(1); }
+    .rename-dialog h3 { margin: 0 0 6px; font-size: 18px; line-height: 25px; }
+    .rename-dialog p { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 19px; }
+    .rename-input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid #d9d1d7; border-radius: 13px; outline: 0; color: var(--ink); background: #fff; font: inherit; }
+    .rename-input:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(244,123,32,.10); }
+    .rename-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+    .rename-actions button { height: 44px; border-radius: 12px; font-size: 14px; font-weight: 680; cursor: pointer; }
+    .rename-cancel { border: 1px solid #d5ccd1; background: #fff; color: var(--ink); }
+    .rename-save { border: 0; background: var(--orange); color: #fff; }
+
+    .draft-scrim { position: absolute; z-index: 38; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(35,29,33,.42); opacity: 0; pointer-events: none; transition: opacity 180ms ease; }
+    .draft-scrim.open { opacity: 1; pointer-events: auto; }
+    .draft-dialog { width: 100%; padding: 22px 20px 18px; border-radius: 20px; background: #fff; box-shadow: 0 20px 52px rgba(45,36,42,.24); transform: translateY(12px) scale(.98); transition: transform 240ms var(--ease); }
+    .draft-scrim.open .draft-dialog { transform: translateY(0) scale(1); }
+    .draft-dialog h3 { margin: 0; font-size: 20px; line-height: 28px; letter-spacing: -.015em; }
+    .draft-dialog > p { margin: 9px 0 18px; color: var(--muted); font-size: 13px; line-height: 20px; }
+    .draft-target { color: var(--ink); font-weight: 680; }
+    .draft-primary, .draft-stay { width: 100%; height: 48px; border-radius: 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .draft-primary { border: 0; background: var(--orange); color: #fff; }
+    .draft-primary:hover { background: var(--orange-press); }
+    .draft-stay { margin-top: 10px; border: 1px solid #d8cfd4; background: #fff; color: var(--ink); }
+    .draft-more { margin-top: 8px; }
+    .draft-more summary { min-height: 40px; display: grid; place-items: center; border-radius: 10px; color: var(--muted); font-size: 13px; font-weight: 620; cursor: pointer; list-style: none; }
+    .draft-more summary::-webkit-details-marker { display: none; }
+    .draft-more summary:hover { background: #f7f2f5; color: var(--ink); }
+    .draft-alternatives { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-top: 4px; }
+    .draft-alternatives button { min-height: 42px; padding: 6px 8px; border: 0; border-radius: 11px; background: #f7f2f5; color: #5f575d; font-size: 12px; line-height: 17px; font-weight: 650; cursor: pointer; }
+    .draft-alternatives button:hover { background: #eee7eb; }
+    .draft-alternatives .danger { color: #a33b2d; background: #fff3f0; }
+
+    .calculator-scrim { position: absolute; z-index: 40; inset: 0; display: flex; align-items: flex-end; background: rgba(35,29,33,.28); opacity: 0; pointer-events: none; transition: opacity 180ms ease; }
+    .calculator-scrim.open { opacity: 1; pointer-events: auto; }
+    .calculator-panel { width: 100%; padding: 10px 14px max(16px, env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; background: #f7f3f5; box-shadow: 0 -16px 44px rgba(45,36,42,.18); transform: translateY(102%); transition: transform 300ms var(--ease); }
+    .calculator-scrim.open .calculator-panel { transform: translateY(0); }
+    .calculator-handle { width: 34px; height: 4px; margin: 0 auto 9px; border-radius: 4px; background: #7d747b; }
+    .calculator-display { min-height: 64px; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 12px; margin-bottom: 10px; padding: 8px 12px 10px; border: 1px solid #e3dce1; border-radius: 14px; background: #fff; }
+    .calculator-display small { align-self: center; color: var(--muted); font-size: 12px; }
+    .calculator-expression { min-width: 0; overflow: hidden; color: var(--ink); font-size: 27px; line-height: 34px; font-weight: 720; text-align: right; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .calculator-grid { display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(4, 54px); gap: 8px; }
+    .calculator-key { border: 1px solid #e0d8dd; border-radius: 13px; background: #fff; color: var(--ink); font-size: 20px; font-weight: 650; box-shadow: 0 2px 0 rgba(54,43,51,.08); cursor: pointer; }
+    .calculator-key:active { transform: translateY(1px); box-shadow: none; }
+    .calculator-key.operator { background: #eee8ec; color: #5e565c; }
+    .calculator-key.danger { background: #fff0ec; color: #c44325; }
+    .calculator-key.confirm { grid-column: 5; grid-row: 3 / 5; background: var(--orange); color: #fff; font-size: 15px; }
+    .number-field-action svg { width: 20px; height: 20px; }
+
+    .settings-content { padding-top: 8px; }
+    .settings-intro { margin: 0 0 24px; color: var(--muted); font-size: 13px; line-height: 20px; }
+    .settings-group + .settings-group { margin-top: 28px; }
+    .settings-group > h2 { margin: 0 0 9px; color: #716971; font-size: 13px; line-height: 20px; font-weight: 650; }
+    .settings-group { border-bottom: 1px solid var(--line); }
+    .settings-row {
+      width: 100%;
+      min-height: 74px;
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr) auto 18px;
+      align-items: center;
+      gap: 11px;
+      padding: 10px 4px;
+      border: 0;
+      border-top: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+      text-align: left;
+      cursor: pointer;
+      transition: background 140ms ease;
+    }
+    .settings-row:hover { background: #fff7f1; }
+    .settings-row:active { background: #f8f1f4; }
+    .settings-row.static-row { grid-template-columns: 38px minmax(0, 1fr) auto; cursor: default; }
+    .settings-row.static-row:hover, .settings-row.static-row:active { background: transparent; }
+    .settings-row-icon { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; background: #f4eef1; color: #625b62; }
+    .settings-row-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .settings-row-copy { min-width: 0; display: block; }
+    .settings-row-copy strong { display: block; font-size: 15px; line-height: 21px; font-weight: 690; }
+    .settings-row-copy small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 18px; font-weight: 450; }
+    .settings-state { color: #8b838a; font-size: 12px; line-height: 18px; white-space: nowrap; }
+    .settings-state.ready, .settings-state.enabled { color: #2f7650; font-weight: 650; }
+    .row-chevron { width: 17px; height: 17px; fill: none; stroke: #8b838a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .payment-content { padding-top: 8px; }
+    .payment-hero { display: grid; grid-template-columns: 52px 1fr; gap: 4px 14px; align-items: center; padding: 12px 4px 24px; text-align: left; }
+    .payment-hero-icon { grid-row: 1 / 3; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 16px; background: var(--orange-soft); color: var(--orange); }
+    .payment-hero-icon svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .payment-hero h2 { margin: 0; font-size: 21px; line-height: 28px; letter-spacing: -.02em; }
+    .payment-hero p { max-width: 31em; margin: 0; color: var(--muted); font-size: 13px; line-height: 20px; }
+    .payment-flow { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+    .payment-flow li { min-height: 66px; display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }
+    .payment-flow li > span { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 9px; background: #f3edef; color: #625b62; font-size: 12px; font-weight: 720; }
+    .payment-flow strong, .payment-flow small { display: block; }
+    .payment-flow strong { font-size: 14px; line-height: 20px; font-weight: 670; }
+    .payment-flow small { margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 18px; }
+    .privacy-note { display: grid; grid-template-columns: 22px 1fr; gap: 10px; margin: 18px 0 20px; padding: 14px; border-radius: 14px; background: #f6f1f3; }
+    .privacy-note svg { width: 21px; height: 21px; fill: none; stroke: #5f585e; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .privacy-note p { margin: 0; }
+    .privacy-note strong, .privacy-note span { display: block; }
+    .privacy-note strong { font-size: 13px; line-height: 19px; }
+    .privacy-note span { margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 19px; }
+    .payment-enable { height: 52px; }
+    .enabled-summary { display: grid; grid-template-columns: 46px 1fr; align-items: start; gap: 14px; padding: 16px 4px 24px; border-bottom: 1px solid var(--line); }
+    .enabled-check { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; background: #e7f3eb; color: #2f7650; }
+    .enabled-check svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .enabled-summary h2 { margin: 0; font-size: 20px; line-height: 27px; }
+    .enabled-summary p { margin: 5px 0 0; color: var(--muted); font-size: 13px; line-height: 20px; }
+    .enabled-list { border-bottom: 1px solid var(--line); }
+    .enabled-list > div { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); }
+    .enabled-list > div:last-child { border-bottom: 0; }
+    .enabled-list span { color: var(--muted); font-size: 13px; }
+    .enabled-list strong { max-width: 62%; font-size: 13px; line-height: 19px; text-align: right; }
+    .enabled-list .ok-text { color: #2f7650; }
+    .enabled-tip { margin: 18px 0 26px; color: var(--muted); font-size: 12px; line-height: 19px; }
+    .quiet-danger { width: 100%; height: 46px; border: 0; border-radius: 13px; background: transparent; color: #a33b2d; font-size: 13px; font-weight: 650; cursor: pointer; }
+    .quiet-danger:hover { background: #fff2ef; }
+
+    .permission-prompt { position: absolute; z-index: 55; inset: 0; display: flex; align-items: flex-end; background: rgba(35,29,33,.34); opacity: 0; pointer-events: none; transition: opacity 180ms ease; }
+    .permission-prompt.open { opacity: 1; pointer-events: auto; }
+    .permission-panel { width: 100%; padding: 10px 20px max(22px, env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; background: var(--surface); box-shadow: 0 -16px 44px rgba(45,36,42,.16); transform: translateY(102%); transition: transform 300ms var(--ease); }
+    .permission-prompt.open .permission-panel { transform: translateY(0); }
+    .permission-panel h2 { margin: 18px 0 7px; font-size: 19px; line-height: 26px; }
+    .permission-panel p { margin: 0 0 20px; color: var(--muted); font-size: 13px; line-height: 20px; }
+    .permission-panel .primary { height: 50px; }
+    .permission-later { width: 100%; height: 44px; margin-top: 6px; border: 0; background: transparent; color: var(--muted); font-size: 14px; cursor: pointer; }
+
+    .quick-intro { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 20px; }
+    .quick-list { display: grid; gap: 14px; }
+    .quick-option { width: 100%; padding: 18px 16px; border: 1px solid var(--line); border-radius: 16px; background: #fff; color: var(--ink); text-align: left; cursor: pointer; box-shadow: 0 3px 10px rgba(48,39,46,.045); transition: border-color 160ms ease, transform 130ms ease, box-shadow 160ms ease; }
+    .quick-option:hover { border-color: #d7c9cf; box-shadow: 0 7px 18px rgba(48,39,46,.075); }
+    .quick-option:active { transform: scale(.985); }
+    .quick-option-top { display: flex; align-items: center; gap: 10px; }
+    .quick-number { width: 28px; height: 28px; display: grid; place-items: center; flex: none; border-radius: 9px; background: var(--orange-soft); color: #b9520b; font-size: 13px; font-weight: 760; }
+    .quick-option h2 { margin: 0; font-size: 16px; line-height: 23px; letter-spacing: -.01em; }
+    .quick-flow { margin: 14px 0 0; color: #514a50; font-size: 13px; line-height: 21px; }
+    .quick-flow b { color: var(--orange); font-weight: 700; }
+    .quick-note { margin: 9px 0 0 38px; color: var(--muted); font-size: 12px; line-height: 18px; }
+    .quick-cta { display: inline-flex; align-items: center; gap: 5px; margin: 15px 0 0 38px; color: var(--orange); font-size: 13px; font-weight: 700; }
+    .quick-cta svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+    .demo-layer { position: absolute; z-index: 50; inset: 0; display: none; overflow: hidden; background: #f5f2f4; }
+    .demo-layer.open { display: block; }
+    .demo-phone { position: absolute; inset: 0; display: flex; flex-direction: column; background: #f8f6f7; }
+    .demo-status { height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; color: #373137; font-size: 12px; font-weight: 680; }
+    .demo-appbar { height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #fff; }
+    .demo-back { width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+    .demo-back svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2; }
+    .demo-appbar strong { font-size: 18px; }
+    .demo-body { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+    .receipt { margin: 22px 18px; padding: 26px 20px; border-radius: 16px; background: #fff; box-shadow: 0 8px 28px rgba(48,39,46,.08); text-align: center; }
+    .receipt-check { width: 52px; height: 52px; display: grid; place-items: center; margin: 0 auto 14px; border-radius: 50%; background: #e8f6ed; color: #277c45; }
+    .receipt-check svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.4; }
+    .receipt h2 { margin: 0; font-size: 20px; }
+    .receipt-amount { margin: 12px 0 3px; font-size: 34px; line-height: 42px; font-weight: 760; font-variant-numeric: tabular-nums; }
+    .receipt p { margin: 3px 0; color: var(--muted); font-size: 13px; }
+    .float-bookkeep { position: absolute; right: 18px; bottom: 28px; min-height: 48px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border: 0; border-radius: 15px; background: var(--orange); color: #fff; font-size: 14px; font-weight: 720; box-shadow: 0 10px 24px rgba(204,87,5,.3); cursor: pointer; }
+    .float-bookkeep svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; }
+    .capture-preview { margin: 14px 18px 0; aspect-ratio: 3 / 4.15; overflow: hidden; border-radius: 14px; background: #fff; box-shadow: 0 8px 24px rgba(48,39,46,.11); }
+    .capture-mini { height: 100%; padding: 22px; background: #f8f6f7; }
+    .capture-mini .receipt { margin: 0; transform: scale(.86); transform-origin: top center; }
+    .capture-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 16px 18px 22px; background: #fff; }
+    .capture-actions button { height: 48px; border-radius: 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .capture-dismiss { border: 1px solid var(--line); background: #fff; }
+    .capture-share { border: 0; background: var(--orange); color: #fff; }
+    .share-sheet, .permission-sheet { position: absolute; z-index: 2; right: 0; bottom: 0; left: 0; padding: 10px 18px max(22px, env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; background: #fff; box-shadow: 0 -14px 40px rgba(45,36,42,.18); transform: translateY(105%); transition: transform 300ms var(--ease); }
+    .share-sheet.open, .permission-sheet.open { transform: translateY(0); }
+    .demo-handle { width: 34px; height: 4px; margin: 0 auto 18px; border-radius: 4px; background: #8a8288; }
+    .share-sheet h2, .permission-sheet h2 { margin: 0 0 6px; font-size: 18px; line-height: 25px; }
+    .share-sheet p, .permission-sheet p { margin: 0; color: var(--muted); font-size: 13px; line-height: 20px; }
+    .share-target { width: 88px; margin-top: 18px; padding: 0; border: 0; background: transparent; text-align: center; cursor: pointer; }
+    .share-target-icon { width: 54px; height: 54px; display: grid; place-items: center; margin: 0 auto 7px; border-radius: 16px; background: var(--orange); color: #fff; }
+    .share-target-icon svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 2; }
+    .share-target span:last-child { font-size: 12px; font-weight: 650; }
+    .permission-actions { display: grid; gap: 9px; margin-top: 18px; }
+    .permission-actions button { height: 48px; border-radius: 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .permission-allow { border: 0; background: var(--orange); color: #fff; }
+    .permission-cancel { border: 1px solid var(--line); background: #fff; }
+    .recognizing { position: absolute; z-index: 4; inset: 0; display: none; place-items: center; background: var(--surface); }
+    .recognizing.open { display: grid; }
+    .recognizing-card { width: calc(100% - 48px); text-align: center; }
+    .recognizing-ring { width: 46px; height: 46px; margin: 0 auto 18px; border: 4px solid #f3dfd0; border-top-color: var(--orange); border-radius: 50%; animation: spin .8s linear infinite; }
+    .recognizing h2 { margin: 0 0 6px; font-size: 19px; }
+    .recognizing p { margin: 0; color: var(--muted); font-size: 13px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .toast {
+      position: fixed;
+      z-index: 60;
+      top: 50%;
+      left: 50%;
+      max-width: calc(100% - 46px);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 14px;
+      transform: translate(-50%, -38%) scale(.96);
+      background: #ffe1b8;
+      color: #4a2b15;
+      box-shadow: 0 10px 28px rgba(73,45,24,.19);
+      font-size: 14px;
+      line-height: 20px;
+      font-weight: 620;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 260ms var(--ease);
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    .toast svg { width: 19px; height: 19px; flex: none; fill: var(--orange); stroke: none; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(244,123,32,.24); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+    @media (max-width: 420px) { body { display: block; } .phone { width: 100%; box-shadow: none; } }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <div class="viewport">
+      <section class="screen active" data-screen="home" aria-label="主页面">
+        <header class="app-bar">
+          <h1 class="app-title">截图记账</h1>
+          <button class="icon-button" aria-label="新建一笔" data-toast="表单已清空，可以开始记账">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <button class="icon-button" aria-label="刷新当前账本" data-toast="当前账本已同步">
+            <svg viewBox="0 0 24 24"><path d="M20 6v5h-5"/><path d="M19 11a7.5 7.5 0 1 0 .2 5"/></svg>
+          </button>
+          <button class="icon-button" aria-label="设置" data-nav="settings">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/></svg>
+          </button>
+        </header>
+        <main class="content">
+          <div class="section-row"><h2>当前账本</h2><button class="text-action" data-nav="switch"><svg viewBox="0 0 24 24"><path d="m8 7-3 3 3 3M5 10h10M16 17l3-3-3-3M19 14H9"/></svg>切换</button></div>
+          <section class="current-card" role="button" tabindex="0" data-current-fields aria-label="管理当前账本字段"><p class="book-name js-current-name">个人财务报表（2026年）</p><p class="table-name js-current-table">支出</p></section>
+          <section class="field-section">
+            <div class="section-row"><h2>记账字段</h2><button class="text-action" data-toast="原型预览：调整字段顺序"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>排序</button></div>
+            <div class="fields">
+              <fieldset class="field"><legend>名称 *</legend><input value="招商银行存款"></fieldset>
+              <fieldset class="field number-field" data-number-field><legend>支出金额 *</legend><input inputmode="decimal" readonly aria-label="支出金额"><button class="field-action number-field-action" type="button" aria-label="打开计算器"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M7 7h10v3H7zM8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg></button></fieldset>
+              <fieldset class="field"><legend>备注</legend><input placeholder="选填"></fieldset>
+              <fieldset class="field" data-select-field data-label="场景" data-options="日常消费,通勤出行,娱乐休闲,医疗保健,住房" data-multiple="false"><legend>场景</legend><input value="日常消费" readonly><button class="field-action" aria-label="选择场景"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button></fieldset>
+              <fieldset class="field" data-select-field data-label="标签" data-options="工作,家庭,可报销,临时支出" data-multiple="true"><legend>标签</legend><input value="" placeholder="请选择" readonly><button class="field-action" aria-label="选择标签"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button></fieldset>
+              <fieldset class="field"><legend>记录日期</legend><input value="2026-09-26 21:02:43" readonly><button class="field-action">选择</button></fieldset>
+            </div>
+          </section>
+          <button class="primary home-submit" data-toast="已记录到当前账本">记录到当前账本</button>
+          <p class="helper">字段名称和格式来自飞书</p>
+        </main>
+      </section>
+
+      <section class="screen" data-screen="settings" aria-label="设置页面">
+        <header class="app-bar compact">
+          <button class="icon-button back" data-back aria-label="返回"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+          <h1 class="app-title">设置</h1>
+        </header>
+        <main class="content settings-content">
+          <p class="settings-intro">设置快捷记账方式和账本连接。</p>
+          <section class="settings-group" aria-labelledby="quick-settings-title">
+            <h2 id="quick-settings-title">快捷记账</h2>
+            <button class="settings-row" type="button" data-nav="payment-settings">
+              <span class="settings-row-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg></span>
+              <span class="settings-row-copy"><strong>支付通知记账</strong><small>支付成功后提醒，一键填入金额和商户</small></span>
+              <span class="settings-state" data-payment-state>未开启</span>
+              <svg class="row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+            <div class="settings-row static-row">
+              <span class="settings-row-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/><path d="m8 12 2.3 2.3L16 8.7"/></svg></span>
+              <span class="settings-row-copy"><strong>截图分享识别</strong><small>在系统分享面板中选择“截图记账”</small></span>
+              <span class="settings-state ready">可用</span>
+            </div>
+          </section>
+          <section class="settings-group" aria-labelledby="account-settings-title">
+            <h2 id="account-settings-title">账本与服务</h2>
+            <button class="settings-row" type="button" data-toast="原型预览：管理账本连接">
+              <span class="settings-row-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>
+              <span class="settings-row-copy"><strong>服务连接</strong><small>已连接，账本数据可正常同步</small></span>
+              <svg class="row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </section>
+        </main>
+      </section>
+
+      <section class="screen payment-screen" data-screen="payment-settings" aria-label="支付通知记账设置">
+        <header class="app-bar compact">
+          <button class="icon-button back" data-back aria-label="返回"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+          <h1 class="app-title">支付通知记账</h1>
+        </header>
+        <main class="content payment-content">
+          <div class="payment-off" data-payment-off>
+            <section class="payment-hero">
+              <span class="payment-hero-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg></span>
+              <h2>支付完成，少填几项</h2>
+              <p>收到支付成功通知后，点一下提醒即可把金额、商户和支付方式填入当前账本。</p>
+            </section>
+            <ol class="payment-flow" aria-label="使用步骤">
+              <li><span>1</span><div><strong>完成支付</strong><small>支持支付宝和微信支付通知</small></div></li>
+              <li><span>2</span><div><strong>收到记账提醒</strong><small>只在识别到支付成功时出现</small></div></li>
+              <li><span>3</span><div><strong>确认后保存</strong><small>会先打开表单，不会自动写入账本</small></div></li>
+            </ol>
+            <aside class="privacy-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.9 8 7 10 4.1-2 7-5.4 7-10V6l-7-3z"/><path d="m9 12 2 2 4-4"/></svg><p><strong>隐私说明</strong><span>需要系统“通知使用权”。App 会在本机筛选支付宝和微信的支付成功通知，不上传其他通知内容。</span></p></aside>
+            <button class="primary payment-enable" type="button" data-payment-enable>开启支付通知记账</button>
+            <p class="helper">随时可在这里关闭</p>
+          </div>
+          <div class="payment-on" data-payment-on hidden>
+            <section class="enabled-summary">
+              <span class="enabled-check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-8"/></svg></span>
+              <div><h2>已开启</h2><p>下次支付成功后，你会收到一条记账提醒。</p></div>
+            </section>
+            <section class="enabled-list" aria-label="功能状态">
+              <div><span>支持的通知</span><strong>支付宝、微信支付</strong></div>
+              <div><span>系统权限</span><strong class="ok-text">已允许</strong></div>
+              <div><span>填入方式</span><strong>打开表单后确认</strong></div>
+            </section>
+            <p class="enabled-tip">不需要发送测试数据。实际支付成功时，就会直接看到记账提醒。</p>
+            <button class="quiet-danger" type="button" data-payment-disable>关闭支付通知记账</button>
+          </div>
+        </main>
+      </section>
+
+      <section class="screen" data-screen="switch" aria-label="切换账本页面">
+        <header class="app-bar compact">
+          <button class="icon-button back" data-back aria-label="返回"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+          <h1 class="app-title">切换账本</h1>
+        </header>
+        <main class="content switch-content">
+          <p class="context-note">选择一个账本，切换后将返回主页面。</p>
+          <div class="book-list js-switch-list"></div>
+          <div class="switch-footer"><button class="primary" data-nav="manage">管理账本</button></div>
+        </main>
+      </section>
+
+      <section class="screen" data-screen="manage" aria-label="账本管理页面">
+        <header class="app-bar compact manage-bar">
+          <button class="icon-button back" data-back aria-label="返回"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+          <h1 class="app-title">账本管理</h1>
+          <button class="icon-button" aria-label="连接新账本" title="连接新账本" data-toast="原型预览：连接新账本">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <button class="icon-button" aria-label="删除账本" title="删除账本" data-toast="请选择要删除的账本">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
+          </button>
+          <button class="icon-button" aria-label="刷新全部账本" title="刷新全部账本" data-toast="所有账本已刷新">
+            <svg viewBox="0 0 24 24"><path d="M20 6v5h-5"/><path d="M19 11a7.5 7.5 0 1 0 .2 5"/></svg>
+          </button>
+        </header>
+        <main class="content manage-content">
+          <p class="context-note">点击账本卡片查看字段；账本记录可直接在飞书中查看。</p>
+          <div class="book-list js-manage-list"></div>
+        </main>
+      </section>
+
+      <section class="screen fields-screen" data-screen="fields" aria-label="查看账本字段">
+        <header class="app-bar compact">
+          <button class="icon-button back" data-back aria-label="返回"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+          <h1 class="app-title">管理账本字段</h1>
+        </header>
+        <main class="content">
+          <section class="book-source">
+            <div class="book-source-copy">
+              <p class="book-source-label">字段所属账本</p>
+              <p class="book-source-name js-fields-book">个人财务报表（2026年）</p>
+              <p class="book-source-table">数据表：<span class="js-fields-table">支出</span></p>
+            </div>
+            <button class="source-action" data-toast="正在飞书中打开该账本…"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg>打开飞书</button>
+          </section>
+          <div class="section-row field-list-title"><h2 data-field-list-title>账本字段</h2><button class="text-action" data-field-sort><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg><span>排序</span></button></div>
+          <p class="sort-note">按住右侧手柄拖动，调整字段在主页面的显示顺序。</p>
+          <div class="field-list">
+            <div class="field-row" draggable="true"><div class="field-info"><strong>名称</strong><span>文本 · 必填</span></div><div class="field-control"><button class="switch on" role="switch" aria-checked="true" aria-label="显示名称字段"></button><button class="drag-handle" aria-label="拖动名称字段"><span class="six-dot-handle"><i></i><i></i><i></i><i></i><i></i><i></i></span></button></div></div>
+            <div class="field-row" draggable="true"><div class="field-info"><strong>支出金额</strong><span>数字 · 必填</span></div><div class="field-control"><button class="switch on" role="switch" aria-checked="true" aria-label="显示支出金额字段"></button><button class="drag-handle" aria-label="拖动支出金额字段"><span class="six-dot-handle"><i></i><i></i><i></i><i></i><i></i><i></i></span></button></div></div>
+            <div class="field-row" draggable="true"><div class="field-info"><strong>场景</strong><span>单选</span></div><div class="field-control"><button class="switch on" role="switch" aria-checked="true" aria-label="显示场景字段"></button><button class="drag-handle" aria-label="拖动场景字段"><span class="six-dot-handle"><i></i><i></i><i></i><i></i><i></i><i></i></span></button></div></div>
+            <div class="field-row" draggable="true"><div class="field-info"><strong>目的</strong><span>单选</span></div><div class="field-control"><button class="switch" role="switch" aria-checked="false" aria-label="显示目的字段"></button><button class="drag-handle" aria-label="拖动目的字段"><span class="six-dot-handle"><i></i><i></i><i></i><i></i><i></i><i></i></span></button></div></div>
+            <div class="field-row" draggable="true"><div class="field-info"><strong>记录日期</strong><span>日期时间 · 必填</span></div><div class="field-control"><button class="switch on" role="switch" aria-checked="true" aria-label="显示记录日期字段"></button><button class="drag-handle" aria-label="拖动记录日期字段"><span class="six-dot-handle"><i></i><i></i><i></i><i></i><i></i><i></i></span></button></div></div>
+            <div class="field-row" draggable="true"><div class="field-info"><strong>附件</strong><span>App 暂不支持录入</span></div><div class="field-control"><span class="status">不可用</span><button class="drag-handle" aria-label="拖动附件字段"><span class="six-dot-handle"><i></i><i></i><i></i><i></i><i></i><i></i></span></button></div></div>
+          </div>
+          <div class="field-actions single"><button class="primary" data-start-bookkeeping>开始记账</button></div>
+          <p class="helper">字段显示设置仅影响截图记账，不会修改飞书表格。</p>
+        </main>
+      </section>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm-1.2 14.3 6-6-1.4-1.4-4.6 4.6-2.2-2.2-1.4 1.4 3.6 3.6Z"/></svg><span></span></div>
+    <div class="sheet-scrim" id="option-sheet" aria-hidden="true">
+      <section class="option-sheet" role="dialog" aria-modal="true" aria-labelledby="option-sheet-title">
+        <div class="sheet-handle"></div>
+        <header class="sheet-header">
+          <button data-sheet-cancel>取消</button>
+          <h2 id="option-sheet-title">选择选项</h2>
+          <button data-sheet-done>完成</button>
+        </header>
+        <div class="sheet-tools">
+          <label class="sheet-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16.2 16.2 4 4"></path></svg>
+            <input type="search" placeholder="查找或创建选项" autocomplete="off" data-option-search>
+          </label>
+          <button class="sheet-add" type="button" aria-label="新建选项" data-option-add>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          </button>
+        </div>
+        <div class="sheet-list"></div>
+        <div class="option-menu" data-option-menu>
+          <button type="button" data-option-rename>重命名</button>
+          <button class="danger" type="button" data-option-delete>删除</button>
+        </div>
+      </section>
+    </div>
+    <div class="rename-scrim" id="rename-dialog" aria-hidden="true">
+      <section class="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="rename-title">
+        <h3 id="rename-title">重命名选项</h3>
+        <p>修改选项名称，不会清空账本中已经填写的记录。</p>
+        <input class="rename-input" type="text" autocomplete="off" data-rename-input>
+        <div class="rename-actions">
+          <button class="rename-cancel" type="button" data-rename-cancel>取消</button>
+          <button class="rename-save" type="button" data-rename-save>保存</button>
+        </div>
+      </section>
+    </div>
+    <div class="draft-scrim" id="draft-dialog" aria-hidden="true">
+      <section class="draft-dialog" role="dialog" aria-modal="true" aria-labelledby="draft-title">
+        <h3 id="draft-title">当前截图还未保存</h3>
+        <p>切换到<span class="draft-target" data-draft-target>其他账本</span>后，可以使用原截图按新账本字段重新识别。</p>
+        <button class="draft-primary" type="button" data-draft-reparse>切换并重新识别</button>
+        <button class="draft-stay" type="button" data-draft-stay>继续编辑当前账目</button>
+        <details class="draft-more">
+          <summary>其他处理方式</summary>
+          <div class="draft-alternatives">
+            <button type="button" data-draft-save>先保存，再切换</button>
+            <button class="danger" type="button" data-draft-discard>放弃内容并切换</button>
+          </div>
+        </details>
+      </section>
+    </div>
+    <div class="permission-prompt" id="payment-permission" aria-hidden="true">
+      <section class="permission-panel" role="dialog" aria-modal="true" aria-labelledby="payment-permission-title">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <h2 id="payment-permission-title">继续开启通知权限</h2>
+        <p>下一步将打开 Android 的“通知使用权”页面。请为“截图记账”开启权限，返回后即可使用。</p>
+        <button class="primary" type="button" data-payment-confirm>去开启</button>
+        <button class="permission-later" type="button" data-payment-later>暂不开启</button>
+      </section>
+    </div>
+    <div class="calculator-scrim" id="calculator" aria-hidden="true">
+      <section class="calculator-panel" role="dialog" aria-modal="true" aria-label="金额计算器">
+        <div class="calculator-handle" aria-hidden="true"></div>
+        <div class="calculator-display"><small>支出金额</small><div class="calculator-expression" aria-live="polite">0</div></div>
+        <div class="calculator-grid">
+          <button class="calculator-key" data-calc-key="7">7</button><button class="calculator-key" data-calc-key="8">8</button><button class="calculator-key" data-calc-key="9">9</button><button class="calculator-key operator" data-calc-key="÷">÷</button><button class="calculator-key danger" data-calc-key="back" aria-label="退格">⌫</button>
+          <button class="calculator-key" data-calc-key="4">4</button><button class="calculator-key" data-calc-key="5">5</button><button class="calculator-key" data-calc-key="6">6</button><button class="calculator-key operator" data-calc-key="×">×</button><button class="calculator-key danger" data-calc-key="clear">C</button>
+          <button class="calculator-key" data-calc-key="1">1</button><button class="calculator-key" data-calc-key="2">2</button><button class="calculator-key" data-calc-key="3">3</button><button class="calculator-key operator" data-calc-key="-">−</button><button class="calculator-key confirm" data-calc-key="done">完成</button>
+          <button class="calculator-key" data-calc-key=".">.</button><button class="calculator-key" data-calc-key="0">0</button><button class="calculator-key" data-calc-key="00">00</button><button class="calculator-key operator" data-calc-key="+">+</button>
+        </div>
+      </section>
+    </div>
+    <div class="demo-layer" id="share-demo" aria-hidden="true">
+      <section class="demo-phone" aria-label="截图分享演示">
+        <div class="demo-status"><span>17:42</span><span>5G · 86%</span></div>
+        <header class="demo-appbar"><button class="demo-back" data-demo-close aria-label="退出演示"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><strong>截图预览</strong></header>
+        <div class="demo-body">
+          <div class="capture-preview"><div class="capture-mini"><section class="receipt"><div class="receipt-check"><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-8"/></svg></div><h2>支付成功</h2><div class="receipt-amount">¥25.50</div><p>包点早餐</p><p>2026-09-27 17:41</p></section></div></div>
+        </div>
+        <div class="capture-actions"><button class="capture-dismiss" data-demo-close>完成</button><button class="capture-share" data-share-open>分享</button></div>
+        <section class="share-sheet" data-share-sheet><div class="demo-handle"></div><h2>分享到</h2><p>“截图记账”作为图片分享目标出现。</p><button class="share-target" data-start-recognition><span class="share-target-icon"><svg viewBox="0 0 24 24"><path d="M7 3h10a2 2 0 0 1 2 2v14l-7-4-7 4V5a2 2 0 0 1 2-2z"/></svg></span><span>截图记账</span></button></section>
+        <div class="recognizing" data-recognizing><div class="recognizing-card"><div class="recognizing-ring"></div><h2>已打开截图记账</h2><p>正在识别这张截图…</p></div></div>
+      </section>
+    </div>
+    <div class="demo-layer" id="float-demo" aria-hidden="true">
+      <section class="demo-phone" aria-label="支付页悬浮入口演示">
+        <div class="demo-status"><span>17:42</span><span>5G · 86%</span></div>
+        <header class="demo-appbar"><button class="demo-back" data-demo-close aria-label="退出演示"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><strong>支付结果</strong></header>
+        <div class="demo-body"><section class="receipt"><div class="receipt-check"><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-8"/></svg></div><h2>支付成功</h2><div class="receipt-amount">¥25.50</div><p>包点早餐</p><p>2026-09-27 17:41</p></section><button class="float-bookkeep" data-capture-request><svg viewBox="0 0 24 24"><path d="M8 4H5a1 1 0 0 0-1 1v3M16 4h3a1 1 0 0 1 1 1v3M8 20H5a1 1 0 0 1-1-1v-3M16 20h3a1 1 0 0 0 1-1v-3"/><rect x="8" y="8" width="8" height="8" rx="1"/></svg>截图记账</button></div>
+        <section class="permission-sheet" data-permission-sheet><div class="demo-handle"></div><h2>允许“截图记账”捕获屏幕？</h2><p>这是 Android 的系统确认，不能由 App 静默跳过。</p><div class="permission-actions"><button class="permission-allow" data-start-recognition>允许并开始识别</button><button class="permission-cancel" data-demo-close>取消</button></div></section>
+        <div class="recognizing" data-recognizing><div class="recognizing-card"><div class="recognizing-ring"></div><h2>已打开截图记账</h2><p>正在识别刚才的屏幕…</p></div></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const books = [
+      { id: 1, name: '个人财务报表（2026年）', table: '支出', last: '2026/9/25 15:27' },
+      { id: 2, name: '截图记账测试', table: '数据表', last: '2026/9/21 20:43' },
+      { id: 3, name: 'momo截图记账测试333', table: '数据表', last: '2026/9/21 17:40' },
+      { id: 4, name: '截图记账测试222', table: '数据表', last: '2026/9/20 19:47' }
+    ];
+    let currentBookId = 1;
+    let currentScreen = 'home';
+    const history = [];
+    const screens = Object.fromEntries([...document.querySelectorAll('.screen')].map(el => [el.dataset.screen, el]));
+    const switchList = document.querySelector('.js-switch-list');
+    const manageList = document.querySelector('.js-manage-list');
+    const toast = document.querySelector('#toast');
+    const optionSheet = document.querySelector('#option-sheet');
+    const optionList = optionSheet.querySelector('.sheet-list');
+    const optionTitle = optionSheet.querySelector('#option-sheet-title');
+    const sheetDone = optionSheet.querySelector('[data-sheet-done]');
+    const optionSearch = optionSheet.querySelector('[data-option-search]');
+    const optionMenu = optionSheet.querySelector('[data-option-menu]');
+    const renameDialog = document.querySelector('#rename-dialog');
+    const draftDialog = document.querySelector('#draft-dialog');
+    const paymentPermission = document.querySelector('#payment-permission');
+    const paymentOff = document.querySelector('[data-payment-off]');
+    const paymentOn = document.querySelector('[data-payment-on]');
+    const paymentState = document.querySelector('[data-payment-state]');
+    const renameInput = renameDialog.querySelector('[data-rename-input]');
+    const fieldsScreen = document.querySelector('.fields-screen');
+    const fieldSortButton = fieldsScreen.querySelector('[data-field-sort]');
+    const fieldListTitle = fieldsScreen.querySelector('[data-field-list-title]');
+    const sortableFieldList = fieldsScreen.querySelector('.field-list');
+    const calculator = document.querySelector('#calculator');
+    const calculatorExpression = calculator.querySelector('.calculator-expression');
+    let activeSelectField = null;
+    let activeNumberInput = null;
+    let amountExpression = '';
+    let draftSelection = new Set();
+    let menuOption = '';
+    let draggedField = null;
+    let fieldSortStartOrder = '';
+    let pendingSwitchBookId = null;
+    sortableFieldList.querySelectorAll('.field-row').forEach(row => row.draggable = false);
+    let toastTimer;
+
+    const checkIcon = '<svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-8"/></svg>';
+    function renderBooks() {
+      switchList.innerHTML = books.map(book => `
+        <button class="book-card ${book.id === currentBookId ? 'current' : ''}" data-switch-book="${book.id}">
+          <div class="card-top"><div class="book-copy"><p class="book-name">${book.name}</p><p class="table-name">${book.table}</p></div>${book.id === currentBookId ? `<span class="status current">${checkIcon}当前</span>` : '<span class="status">切换</span>'}</div>
+          <p class="meta">最近使用：${book.last}</p>
+        </button>`).join('');
+      manageList.innerHTML = books.map(book => `
+        <article class="book-card manage-card ${book.id === currentBookId ? 'current' : ''}" role="button" tabindex="0" data-fields="${book.id}" aria-label="查看“${book.name}”的字段">
+          <div class="card-top"><div class="book-copy"><p class="book-name">${book.name}</p><p class="table-name">${book.table}</p></div>${book.id === currentBookId ? '<span class="status current">当前</span>' : ''}</div>
+          <p class="meta">最近使用：${book.last}</p>
+          <div class="manage-actions">
+            <button class="text-action" data-toast="正在打开飞书…"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg>打开飞书</button>
+            <span class="field-discovery">查看字段<svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>
+          </div>
+        </article>`).join('');
+    }
+
+    function showToast(message, duration = 1700) {
+      toast.querySelector('span').textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
+    }
+
+    function navigate(target, isBack = false) {
+      if (target === currentScreen) return;
+      const previous = screens[currentScreen];
+      const next = screens[target];
+      if (!isBack) history.push(currentScreen);
+      next.classList.toggle('back-enter', isBack);
+      next.classList.add('active');
+      requestAnimationFrame(() => next.classList.remove('back-enter'));
+      previous.classList.remove('active');
+      previous.classList.toggle('exit-left', !isBack);
+      setTimeout(() => previous.classList.remove('exit-left'), 340);
+      currentScreen = target;
+      next.querySelector('.content')?.scrollTo({ top: 0 });
+    }
+
+    function goBack() { navigate(history.pop() || 'home', true); }
+    function selectBook(id) {
+      if (id === currentBookId) { showToast('已经是当前账本'); return; }
+      pendingSwitchBookId = id;
+      const target = books.find(item => item.id === id);
+      draftDialog.querySelector('[data-draft-target]').textContent = `“${target.name}”`;
+      draftDialog.querySelector('.draft-more').open = false;
+      draftDialog.classList.add('open');
+      draftDialog.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeDraftDialog() {
+      draftDialog.classList.remove('open');
+      draftDialog.setAttribute('aria-hidden', 'true');
+    }
+
+    function openPaymentPermission() {
+      paymentPermission.classList.add('open');
+      paymentPermission.setAttribute('aria-hidden', 'false');
+    }
+
+    function closePaymentPermission() {
+      paymentPermission.classList.remove('open');
+      paymentPermission.setAttribute('aria-hidden', 'true');
+    }
+
+    function setPaymentEnabled(enabled) {
+      paymentOff.hidden = enabled;
+      paymentOn.hidden = !enabled;
+      paymentState.textContent = enabled ? '已开启' : '未开启';
+      paymentState.classList.toggle('enabled', enabled);
+    }
+
+    function completeBookSwitch(message) {
+      const id = pendingSwitchBookId;
+      if (!id) return;
+      closeDraftDialog();
+      currentBookId = id;
+      const book = books.find(item => item.id === id);
+      document.querySelectorAll('.js-current-name').forEach(el => el.textContent = book.name);
+      document.querySelectorAll('.js-current-table').forEach(el => el.textContent = book.table);
+      renderBooks();
+      history.length = 0;
+      navigate('home', true);
+      showToast(message);
+      pendingSwitchBookId = null;
+    }
+
+    function openFields(book) {
+      document.querySelector('.js-fields-book').textContent = book.name;
+      document.querySelector('.js-fields-table').textContent = book.table;
+      navigate('fields');
+    }
+
+    function openOptionSheet(field) {
+      activeSelectField = field;
+      const input = field.querySelector('input');
+      const multiple = field.dataset.multiple === 'true';
+      draftSelection = new Set(input.value.split('、').filter(Boolean));
+      optionTitle.textContent = field.dataset.label;
+      sheetDone.hidden = false;
+      optionSearch.value = '';
+      optionSearch.placeholder = '查找或创建选项';
+      delete optionSearch.dataset.editing;
+      optionMenu.classList.remove('open');
+      renderOptions();
+      optionSheet.classList.add('open');
+      optionSheet.setAttribute('aria-hidden', 'false');
+    }
+
+    function renderOptions() {
+      if (!activeSelectField) return;
+      const multiple = activeSelectField.dataset.multiple === 'true';
+      const query = optionSearch.value.trim().toLowerCase();
+      const options = activeSelectField.dataset.options.split(',').filter(Boolean);
+      const filtered = options.filter(option => option.toLowerCase().includes(query));
+      const moreIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>';
+      optionList.innerHTML = filtered.map(option => `<div class="option-row ${draftSelection.has(option) ? 'selected' : ''}" role="${multiple ? 'checkbox' : 'radio'}" tabindex="0" aria-checked="${draftSelection.has(option)}" data-option="${option}" data-multiple="${multiple}"><span class="option-mark"></span><span class="option-name">${option}</span><button class="option-more" type="button" aria-label="${option}的更多操作" data-option-more="${option}">${moreIcon}</button></div>`).join('') || '<div class="sheet-empty">没有找到匹配的选项，点击右侧 + 号创建</div>';
+    }
+
+    function closeOptionSheet(commit = false) {
+      if (commit && activeSelectField) activeSelectField.querySelector('input').value = [...draftSelection].join('、');
+      closeRenameDialog();
+      optionSheet.classList.remove('open');
+      optionSheet.setAttribute('aria-hidden', 'true');
+      optionMenu.classList.remove('open');
+      activeSelectField = null;
+    }
+
+    function pickOption(row) {
+      const option = row.dataset.option;
+      const multiple = row.dataset.multiple === 'true';
+      if (!multiple) {
+        activeSelectField.querySelector('input').value = option;
+        closeOptionSheet(false);
+        return;
+      }
+      if (draftSelection.has(option)) draftSelection.delete(option); else draftSelection.add(option);
+      renderOptions();
+    }
+
+    function addOrRenameOption() {
+      if (!activeSelectField) return;
+      const name = optionSearch.value.trim();
+      if (!name) {
+        optionSearch.placeholder = '输入新选项名称';
+        optionSearch.focus();
+        showToast('请先输入新选项名称');
+        return;
+      }
+      const options = activeSelectField.dataset.options.split(',').filter(Boolean);
+      const editing = optionSearch.dataset.editing;
+      if (options.includes(name) && name !== editing) {
+        showToast('该选项已存在');
+        optionSearch.focus();
+        optionSearch.select();
+        return;
+      }
+      if (editing) {
+        const index = options.indexOf(editing);
+        if (index >= 0) options[index] = name;
+        if (draftSelection.delete(editing)) draftSelection.add(name);
+      } else {
+        options.unshift(name);
+        if (activeSelectField.dataset.multiple === 'true') draftSelection.add(name);
+      }
+      activeSelectField.dataset.options = options.join(',');
+      delete optionSearch.dataset.editing;
+      optionSearch.value = '';
+      optionSearch.placeholder = '查找或创建选项';
+      renderOptions();
+      if (!editing && activeSelectField.dataset.multiple !== 'true') {
+        activeSelectField.querySelector('input').value = name;
+        closeOptionSheet(false);
+      }
+      showToast(editing ? `已重命名为“${name}”` : `已添加并选中“${name}”`);
+    }
+
+    function openRenameDialog() {
+      renameInput.value = menuOption;
+      optionMenu.classList.remove('open');
+      renameDialog.classList.add('open');
+      renameDialog.setAttribute('aria-hidden', 'false');
+      requestAnimationFrame(() => {
+        renameInput.focus();
+        renameInput.select();
+      });
+    }
+
+    function closeRenameDialog() {
+      renameDialog.classList.remove('open');
+      renameDialog.setAttribute('aria-hidden', 'true');
+    }
+
+    function saveRenamedOption() {
+      const name = renameInput.value.trim();
+      if (!name) { showToast('请输入选项名称'); renameInput.focus(); return; }
+      const options = activeSelectField.dataset.options.split(',').filter(Boolean);
+      if (options.includes(name) && name !== menuOption) { showToast('该选项已存在'); renameInput.focus(); renameInput.select(); return; }
+      const index = options.indexOf(menuOption);
+      if (index >= 0) options[index] = name;
+      if (draftSelection.delete(menuOption)) draftSelection.add(name);
+      activeSelectField.dataset.options = options.join(',');
+      closeRenameDialog();
+      renderOptions();
+      showToast(`已重命名为“${name}”`);
+    }
+
+    function toggleFieldSorting() {
+      const sorting = fieldsScreen.classList.toggle('sorting');
+      const currentOrder = [...sortableFieldList.querySelectorAll('.field-row')].map(row => row.querySelector('strong').textContent).join('|');
+      if (sorting) fieldSortStartOrder = currentOrder;
+      fieldListTitle.textContent = sorting ? '调整字段顺序' : '账本字段';
+      fieldSortButton.querySelector('span').textContent = sorting ? '完成' : '排序';
+      fieldSortButton.querySelector('svg').style.display = sorting ? 'none' : '';
+      sortableFieldList.querySelectorAll('.field-row').forEach(row => row.draggable = sorting);
+      if (!sorting && currentOrder !== fieldSortStartOrder) showToast('字段顺序已更新');
+    }
+
+    function openCalculator(field) {
+      activeNumberInput = field.querySelector('input');
+      amountExpression = activeNumberInput.value.trim();
+      calculatorExpression.textContent = amountExpression || '0';
+      calculator.classList.add('open');
+      calculator.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeCalculator() {
+      calculator.classList.remove('open');
+      calculator.setAttribute('aria-hidden', 'true');
+      activeNumberInput = null;
+    }
+
+    function calculateAmount(expression) {
+      const tokens = expression.match(/\d+(?:\.\d+)?|[+\-×÷]/g) || [];
+      if (!tokens.length || tokens.join('') !== expression || tokens.length % 2 === 0) return null;
+      const values = tokens.map((token, index) => index % 2 === 0 ? Number(token) : token);
+      if (values.some(value => typeof value === 'number' && !Number.isFinite(value))) return null;
+      for (let index = 1; index < values.length; index += 2) {
+        if (values[index] !== '×' && values[index] !== '÷') continue;
+        const result = values[index] === '×' ? values[index - 1] * values[index + 1] : values[index - 1] / values[index + 1];
+        if (!Number.isFinite(result)) return null;
+        values.splice(index - 1, 3, result);
+        index -= 2;
+      }
+      let result = values[0];
+      for (let index = 1; index < values.length; index += 2) result = values[index] === '+' ? result + values[index + 1] : result - values[index + 1];
+      return Number.isFinite(result) ? result : null;
+    }
+
+    function pressCalculatorKey(key) {
+      const operators = ['+', '-', '×', '÷'];
+      if (key === 'clear') amountExpression = '';
+      else if (key === 'back') amountExpression = amountExpression.slice(0, -1);
+      else if (key === 'done') {
+        const result = calculateAmount(amountExpression || '0');
+        if (result === null) { showToast('请完成当前计算'); return; }
+        activeNumberInput.value = String(Number(result.toFixed(2)));
+        closeCalculator();
+        showToast('金额已填入');
+        return;
+      } else if (operators.includes(key)) {
+        if (!amountExpression) return;
+        amountExpression = operators.includes(amountExpression.slice(-1)) ? amountExpression.slice(0, -1) + key : amountExpression + key;
+      } else if (key === '.') {
+        const currentNumber = amountExpression.split(/[+\-×÷]/).pop();
+        if (!currentNumber.includes('.')) amountExpression += currentNumber ? '.' : '0.';
+      } else {
+        amountExpression = amountExpression === '0' ? key : amountExpression + key;
+      }
+      calculatorExpression.textContent = amountExpression || '0';
+    }
+
+    sortableFieldList.addEventListener('dragstart', event => {
+      if (!fieldsScreen.classList.contains('sorting')) { event.preventDefault(); return; }
+      draggedField = event.target.closest('.field-row');
+      draggedField?.classList.add('dragging');
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    });
+    sortableFieldList.addEventListener('dragover', event => {
+      if (!draggedField) return;
+      event.preventDefault();
+      const target = event.target.closest('.field-row');
+      sortableFieldList.querySelectorAll('.drag-over').forEach(row => row.classList.remove('drag-over'));
+      if (!target || target === draggedField) return;
+      target.classList.add('drag-over');
+      const rect = target.getBoundingClientRect();
+      sortableFieldList.insertBefore(draggedField, event.clientY < rect.top + rect.height / 2 ? target : target.nextSibling);
+    });
+    sortableFieldList.addEventListener('dragend', () => {
+      draggedField?.classList.remove('dragging');
+      sortableFieldList.querySelectorAll('.drag-over').forEach(row => row.classList.remove('drag-over'));
+      draggedField = null;
+    });
+
+    document.addEventListener('click', event => {
+      const calculatorKey = event.target.closest('[data-calc-key]');
+      if (calculatorKey) { pressCalculatorKey(calculatorKey.dataset.calcKey); return; }
+      if (event.target.closest('[data-payment-enable]')) { openPaymentPermission(); return; }
+      if (event.target.closest('[data-payment-confirm]')) {
+        closePaymentPermission();
+        setPaymentEnabled(true);
+        showToast('支付通知记账已开启');
+        return;
+      }
+      if (event.target.closest('[data-payment-disable]')) {
+        setPaymentEnabled(false);
+        showToast('支付通知记账已关闭');
+        return;
+      }
+      if (event.target.closest('[data-payment-later]') || event.target === paymentPermission) { closePaymentPermission(); return; }
+      const demoTrigger = event.target.closest('[data-demo]');
+      if (demoTrigger) {
+        const demo = document.querySelector(`#${demoTrigger.dataset.demo}-demo`);
+        demo?.classList.add('open');
+        demo?.setAttribute('aria-hidden', 'false');
+        return;
+      }
+      if (event.target.closest('[data-demo-close]')) {
+        const demo = event.target.closest('.demo-layer');
+        demo?.classList.remove('open');
+        demo?.setAttribute('aria-hidden', 'true');
+        demo?.querySelector('.share-sheet, .permission-sheet')?.classList.remove('open');
+        demo?.querySelector('[data-recognizing]')?.classList.remove('open');
+        return;
+      }
+      if (event.target.closest('[data-share-open]')) {
+        event.target.closest('.demo-layer').querySelector('[data-share-sheet]').classList.add('open');
+        return;
+      }
+      if (event.target.closest('[data-capture-request]')) {
+        event.target.closest('.demo-layer').querySelector('[data-permission-sheet]').classList.add('open');
+        return;
+      }
+      if (event.target.closest('[data-start-recognition]')) {
+        const demo = event.target.closest('.demo-layer');
+        demo.querySelector('.share-sheet, .permission-sheet')?.classList.remove('open');
+        demo.querySelector('[data-recognizing]').classList.add('open');
+        setTimeout(() => {
+          demo.classList.remove('open');
+          demo.setAttribute('aria-hidden', 'true');
+          demo.querySelector('[data-recognizing]').classList.remove('open');
+          history.length = 0;
+          navigate('home', true);
+          const fields = screens.home.querySelectorAll('.field input');
+          if (fields[0]) fields[0].value = '包点早餐';
+          if (fields[1]) fields[1].value = '25.5';
+          showToast('识别完成，请确认账目');
+        }, 900);
+        return;
+      }
+      if (event.target === calculator) { closeCalculator(); return; }
+      const numberField = event.target.closest('[data-number-field]');
+      if (numberField) { openCalculator(numberField); return; }
+      if (event.target.closest('[data-field-sort]')) { toggleFieldSorting(); return; }
+      const more = event.target.closest('[data-option-more]');
+      if (more) {
+        menuOption = more.dataset.optionMore;
+        optionMenu.classList.add('open');
+        return;
+      }
+      if (event.target.closest('[data-option-add]')) { addOrRenameOption(); return; }
+      if (event.target.closest('[data-option-rename]')) {
+        openRenameDialog(); return;
+      }
+      if (event.target.closest('[data-rename-save]')) { saveRenamedOption(); return; }
+      if (event.target.closest('[data-rename-cancel]') || event.target === renameDialog) { closeRenameDialog(); return; }
+      if (event.target.closest('[data-draft-reparse]')) { completeBookSwitch('已切换，正在用原截图重新识别…'); return; }
+      if (event.target.closest('[data-draft-save]')) { completeBookSwitch('当前账目已保存，并已切换账本'); return; }
+      if (event.target.closest('[data-draft-discard]')) { completeBookSwitch('已放弃当前内容并切换账本'); return; }
+      if (event.target.closest('[data-draft-stay]') || event.target === draftDialog) { closeDraftDialog(); pendingSwitchBookId = null; return; }
+      if (event.target.closest('[data-option-delete]')) {
+        const options = activeSelectField.dataset.options.split(',').filter(option => option && option !== menuOption);
+        activeSelectField.dataset.options = options.join(',');
+        draftSelection.delete(menuOption);
+        optionMenu.classList.remove('open');
+        renderOptions();
+        showToast('选项已删除');
+        return;
+      }
+      const option = event.target.closest('[data-option]');
+      if (option) { pickOption(option); return; }
+      if (event.target.closest('[data-sheet-done]')) { closeOptionSheet(true); return; }
+      if (event.target.closest('[data-sheet-cancel]') || event.target === optionSheet) { closeOptionSheet(false); return; }
+      const selectField = event.target.closest('[data-select-field]');
+      if (selectField) { openOptionSheet(selectField); return; }
+      const startBookkeeping = event.target.closest('[data-start-bookkeeping]');
+      if (startBookkeeping) { navigate('home', true); return; }
+      const nav = event.target.closest('[data-nav]');
+      if (nav) { navigate(nav.dataset.nav); return; }
+      if (event.target.closest('[data-back]')) { goBack(); return; }
+      const switchBook = event.target.closest('[data-switch-book]');
+      if (switchBook) { selectBook(Number(switchBook.dataset.switchBook)); return; }
+      const feedback = event.target.closest('[data-toast]');
+      if (feedback) { showToast(feedback.dataset.toast); return; }
+      const currentFields = event.target.closest('[data-current-fields]');
+      if (currentFields) { openFields(books.find(item => item.id === currentBookId)); return; }
+      const fields = event.target.closest('[data-fields]');
+      if (fields) {
+        const book = books.find(item => item.id === Number(fields.dataset.fields));
+        openFields(book);
+        return;
+      }
+      const toggle = event.target.closest('.switch');
+      if (toggle) {
+        const on = toggle.classList.toggle('on');
+        toggle.setAttribute('aria-checked', String(on));
+        return;
+      }
+      if (!event.target.closest('[data-option-menu]')) optionMenu.classList.remove('open');
+    });
+
+    optionSearch.addEventListener('input', renderOptions);
+    optionSearch.addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); addOrRenameOption(); }
+    });
+    renameInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); saveRenamedOption(); }
+    });
+
+    document.addEventListener('keydown', event => {
+      if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[data-current-fields], .manage-card[data-fields]')) {
+        event.preventDefault();
+        const id = event.target.dataset.fields ? Number(event.target.dataset.fields) : currentBookId;
+        openFields(books.find(item => item.id === id));
+      }
+    });
+
+    window.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      if (renameDialog.classList.contains('open')) closeRenameDialog();
+      else if (calculator.classList.contains('open')) closeCalculator();
+      else if (optionSheet.classList.contains('open')) closeOptionSheet(false);
+      else if (currentScreen !== 'home') goBack();
+    });
+    renderBooks();
+    if (new URLSearchParams(location.search).has('settings')) navigate('settings');
+  </script>
+</body>
+</html>

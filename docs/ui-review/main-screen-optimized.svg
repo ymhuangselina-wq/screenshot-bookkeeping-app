@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1280" viewBox="0 0 720 1280">
+  <rect width="720" height="1280" fill="#FFFBFE"/>
+
+  <!-- Top app bar -->
+  <text x="28" y="58" font-family="Arial, PingFang SC, sans-serif" font-size="34" font-weight="700" fill="#262126">截图记账</text>
+  <g fill="none" stroke="#49434B" stroke-width="4" stroke-linecap="round">
+    <path d="M500 25v28M486 39h28"/>
+    <path d="M574 30a18 18 0 1 0 5 19M574 30h16v-16"/>
+    <circle cx="660" cy="39" r="14"/><path d="M660 15v8M660 55v8M636 39h8M676 39h8"/>
+  </g>
+
+  <!-- Current ledger card -->
+  <rect x="28" y="94" width="664" height="156" rx="24" fill="#FFF7F2" stroke="#E9E0DC"/>
+  <text x="58" y="132" font-family="Arial, PingFang SC, sans-serif" font-size="16" font-weight="600" fill="#6C646C">当前账本</text>
+  <text x="58" y="174" font-family="Arial, PingFang SC, sans-serif" font-size="27" font-weight="700" fill="#272228">个人财务报表（2026年）</text>
+  <text x="58" y="210" font-family="Arial, PingFang SC, sans-serif" font-size="17" fill="#746C74">资产</text>
+  <text x="505" y="158" font-family="Arial, PingFang SC, sans-serif" font-size="18" font-weight="600" fill="#F47B20">⇅  切换</text>
+  <text x="607" y="158" font-family="Arial, PingFang SC, sans-serif" font-size="18" font-weight="600" fill="#F47B20">↗ 飞书</text>
+
+  <!-- Section heading -->
+  <text x="30" y="310" font-family="Arial, PingFang SC, sans-serif" font-size="17" font-weight="600" fill="#625B63">记账字段</text>
+  <text x="634" y="310" font-family="Arial, PingFang SC, sans-serif" font-size="18" font-weight="600" fill="#F47B20">排序</text>
+
+  <!-- Reusable field rows; 68 high, 14 gap -->
+  <g font-family="Arial, PingFang SC, sans-serif">
+    <g transform="translate(30 342)">
+      <rect width="660" height="68" rx="14" fill="#FFFFFF" stroke="#DCD5DB" stroke-width="1.5"/>
+      <rect x="18" y="-9" width="48" height="18" fill="#FFFBFE"/>
+      <text x="22" y="5" font-size="14" font-weight="600" fill="#6D656D">名称</text>
+      <text x="22" y="43" font-size="19" fill="#2C272D">招商银行存款</text>
+    </g>
+    <g transform="translate(30 424)">
+      <rect width="660" height="68" rx="14" fill="#FFFFFF" stroke="#DCD5DB" stroke-width="1.5"/>
+      <rect x="18" y="-9" width="72" height="18" fill="#FFFBFE"/>
+      <text x="22" y="5" font-size="14" font-weight="600" fill="#6D656D">资管平台</text>
+      <text x="22" y="43" font-size="19" fill="#2C272D">招商银行</text>
+      <path d="M626 29l7 8 7-8" fill="none" stroke="#625B63" stroke-width="2.5"/>
+    </g>
+    <g transform="translate(30 506)">
+      <rect width="660" height="68" rx="14" fill="#FFFFFF" stroke="#DCD5DB" stroke-width="1.5"/>
+      <rect x="18" y="-9" width="118" height="18" fill="#FFFBFE"/>
+      <text x="22" y="5" font-size="14" font-weight="600" fill="#6D656D">持有账户（用途）</text>
+      <text x="22" y="43" font-size="19" fill="#2C272D">日常储蓄</text>
+      <path d="M626 29l7 8 7-8" fill="none" stroke="#625B63" stroke-width="2.5"/>
+    </g>
+    <g transform="translate(30 588)">
+      <rect width="660" height="68" rx="14" fill="#FFFFFF" stroke="#DCD5DB" stroke-width="1.5"/>
+      <rect x="18" y="-9" width="72" height="18" fill="#FFFBFE"/>
+      <text x="22" y="5" font-size="14" font-weight="600" fill="#6D656D">货币类型</text>
+      <text x="22" y="43" font-size="19" fill="#2C272D">人民币</text>
+      <path d="M626 29l7 8 7-8" fill="none" stroke="#625B63" stroke-width="2.5"/>
+    </g>
+    <g transform="translate(30 670)">
+      <rect width="660" height="68" rx="14" fill="#FFFFFF" stroke="#DCD5DB" stroke-width="1.5"/>
+      <rect x="18" y="-9" width="72" height="18" fill="#FFFBFE"/>
+      <text x="22" y="5" font-size="14" font-weight="600" fill="#6D656D">资产金额</text>
+      <text x="22" y="43" font-size="20" font-weight="600" fill="#2C272D">¥ 50,000.00</text>
+    </g>
+    <g transform="translate(30 752)">
+      <rect width="660" height="68" rx="14" fill="#FFFFFF" stroke="#DCD5DB" stroke-width="1.5"/>
+      <rect x="18" y="-9" width="42" height="18" fill="#FFFBFE"/>
+      <text x="22" y="5" font-size="14" font-weight="600" fill="#6D656D">备注</text>
+      <text x="22" y="43" font-size="19" fill="#9A929A">选填</text>
+    </g>
+    <g transform="translate(30 834)">
+      <rect width="660" height="68" rx="14" fill="#FFFFFF" stroke="#DCD5DB" stroke-width="1.5"/>
+      <rect x="18" y="-9" width="72" height="18" fill="#FFFBFE"/>
+      <text x="22" y="5" font-size="14" font-weight="600" fill="#6D656D">记录日期</text>
+      <text x="22" y="43" font-size="19" fill="#2C272D">2026-09-25 15:22:32</text>
+      <text x="603" y="43" font-size="17" font-weight="600" fill="#F47B20">选择</text>
+    </g>
+  </g>
+
+  <!-- Primary action is separated from the form group -->
+  <rect x="30" y="946" width="660" height="58" rx="29" fill="#F47B20"/>
+  <text x="360" y="983" text-anchor="middle" font-family="Arial, PingFang SC, sans-serif" font-size="19" font-weight="700" fill="#FFFFFF">记录到当前账本</text>
+  <text x="360" y="1042" text-anchor="middle" font-family="Arial, PingFang SC, sans-serif" font-size="14" fill="#8B838B">字段名称和格式来自飞书</text>
+</svg>

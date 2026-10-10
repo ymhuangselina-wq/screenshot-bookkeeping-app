@@ -1,0 +1,18 @@
+name = "screenshot-bookkeeping-api"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+[[kv_namespaces]]
+binding = "IDEMPOTENCY"
+id = "YOUR_KV_NAMESPACE_ID"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "screenshot-bookkeeping"
+database_id = "YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[vars]
+DASHSCOPE_MODEL = "qwen-vl-max"
+DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+OAUTH_REDIRECT_URL = "https://YOUR_WORKER_DOMAIN/v2/auth/callback"

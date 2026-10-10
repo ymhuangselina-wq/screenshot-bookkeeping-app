@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="payment_page_accessibility_description">在支付、转账或订单详情页显示“截图记账”按钮；只有点击按钮后才会截取当前屏幕并打开 App 识别。</string>
+</resources>

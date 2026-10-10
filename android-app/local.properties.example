@@ -1,0 +1,5 @@
+# Android SDK path (Android Studio normally creates this automatically)
+sdk.dir=/path/to/Android/sdk
+
+# HTTPS endpoint of your deployed Worker or gateway
+serviceUrl=https://your-service.example.com
