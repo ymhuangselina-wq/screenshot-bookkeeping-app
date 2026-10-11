@@ -115,6 +115,23 @@ class GatewayRegressionTests(unittest.TestCase):
         server.save_catalog_async(SlowStore(), value)
         self.assertEqual("b", server.CATALOG_CACHE["value"]["currentBookId"])
 
+    def test_order_detail_prompt_handles_buy_now_pay_later_amount(self):
+        fields = [
+            {"fieldId": "amount", "displayName": "支出金额", "fieldType": 2},
+            {"fieldId": "name", "displayName": "名称", "fieldType": 1},
+            {"fieldId": "date", "displayName": "记录日期", "fieldType": 5},
+        ]
+        prompt = server.build_ai_prompt({"sharedAt": "2026-10-10 14:57:10"}, fields)
+        self.assertIn("先用后付", prompt)
+        self.assertIn("确认收货后自动付款", prompt)
+        self.assertIn("不得把0", prompt)
+        self.assertIn("下单/拼单时间", prompt)
+
+    def test_order_detail_prompt_rejects_non_transaction_pages(self):
+        prompt = server.build_ai_prompt({}, [])
+        for text in ["待付款", "已取消", "退款成功", "购物车", "订单列表", "纯商品介绍页"]:
+            self.assertIn(text, prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

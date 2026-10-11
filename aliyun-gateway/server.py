@@ -9,7 +9,7 @@ PORT=int(os.getenv("FC_SERVER_PORT","9000")); BUCKET=os.getenv("OSS_BUCKET","scr
 # function.  The public endpoint stays inside the same region and is much more
 # predictable for these tiny catalog/idempotency objects.
 ENDPOINT=os.getenv("OSS_ENDPOINT","oss-cn-hangzhou.aliyuncs.com").replace("-internal.aliyuncs.com",".aliyuncs.com")
-BUILD="20261011.1-mvp-1.0"
+BUILD="20261011.2-order-detail-preview"
 DS=os.getenv("DASHSCOPE_BASE_URL","https://dashscope.aliyuncs.com/compatible-mode/v1").rstrip("/"); MODEL=os.getenv("DASHSCOPE_MODEL","qwen3-vl-plus")
 CATALOG_KEY="bookkeeping/catalog.json"; TOKEN={"value":None,"expires":0}; TOKEN_LOCK=threading.Lock()
 CATALOG_CACHE={"value":None,"expires":0}; CATALOG_LOCK=threading.Lock()
@@ -199,11 +199,24 @@ def parse_ai_content(response):
   except json.JSONDecodeError:raise ApiError(502,"ai_invalid_response","百炼返回格式异常，请重试")
  if not isinstance(value,dict):raise ApiError(502,"ai_invalid_response","百炼返回格式异常，请重试")
  return value
+def build_ai_prompt(body,fields):
+ defs=[{"id":x["fieldId"],"name":x["displayName"],"type":x["fieldType"],"options":x.get("options",[])} for x in fields]
+ return "\n".join([
+  "你是支出记账截图数据录入助手，只提取图中明确信息。",
+  "支持单笔支付结果、转账结果、外卖订单和电商订单详情。页面出现商户/商品、订单号或订单状态，并有明确订单金额时，视为单笔订单证据。",
+  "订单状态为交易成功、已支付、已完成、待发货、已发货、配送中、待收货、打包中，或先用后付已下单时 supported=true。待付款、已取消、退款成功、纯退款、收入、购物车、订单列表或纯商品介绍页为 false。",
+  "金额优先级：实付款/实付金额/支付金额，其次应付款/需付款/合计/订单金额。先用后付页面若显示当前实付0但同时明确写有确认收货后自动付款、待扣款或应付款，必须取后者的真实订单金额，并在 warnings 说明尚待结算；不得把0、优惠金额、运费、商品单价、数量、订单号或手机号当作总金额。",
+  "目标字段："+json.dumps(defs,ensure_ascii=False),
+  "values 用字段 id 作键。金额取最终订单支出的绝对值且保留两位小数；日期用 yyyy-MM-dd HH:mm:ss。",
+  "用途优先填写商品名称；多个商品可概括主要商品，其次填写店铺/商户、收款方或转账对象，不得遗漏。日期优先支付时间，其次下单/拼单时间；不要使用预计发货时间。",
+  "单选、多选的新值也如实返回。未知字段省略。",
+  f"只有图中完全没有交易、支付、下单或拼单时间时才用分享时间 {body.get('sharedAt')} 并添加警告。",
+  "只输出 {supported,values,confidence,warnings} JSON。"
+ ])
 def ai(body,fields):
  key=os.getenv("DASHSCOPE_API_KEY")
  if not key:raise ApiError(503,"dashscope_key_missing","阿里云函数尚未配置百炼 API Key")
- defs=[{"id":x["fieldId"],"name":x["displayName"],"type":x["fieldType"],"options":x.get("options",[])} for x in fields]
- prompt="\n".join(["你是支出记账截图数据录入助手，只提取图中明确信息。","支持单笔已支付订单详情、外卖订单、转账结果和支付结果；有实付金额且有商户、订单或支付证据时 supported=true。未支付购物车、订单列表、纯商品页、退款或收入为 false。","目标字段："+json.dumps(defs,ensure_ascii=False),"values 用字段 id 作键。金额取实付金额绝对值且保留两位小数；日期用 yyyy-MM-dd HH:mm:ss。","用途优先填商品或订单内容，其次商户、收款方或转账对象，不得遗漏。订单无支付时间可用下单时间。","单选、多选的新值也如实返回。未知字段省略。",f"只有图中完全没有交易/下单时间时才用分享时间 {body.get('sharedAt')} 并添加警告。","只输出 {supported,values,confidence,warnings} JSON。"])
+ prompt=build_ai_prompt(body,fields)
  payload={"model":MODEL,"enable_thinking":False,"max_tokens":700,"response_format":{"type":"json_object"},"messages":[{"role":"system","content":prompt},{"role":"user","content":[{"type":"image_url","image_url":{"url":body["imageDataUrl"]}},{"type":"text","text":"读取单笔已支付截图或订单详情。"}]}]}
  s,_,b=web(DS+"/chat/completions","POST",{"Authorization":"Bearer "+key,"Content-Type":"application/json"},jb(payload),35);d=json.loads(b)
  if s>=400:raise ApiError(502,"ai_failed",(d.get("error") or {}).get("message","百炼识别失败"))
