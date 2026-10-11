@@ -57,7 +57,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(UiState(
         configured = settings.isConfigured,
         settingsOpen = !settings.isConfigured,
-        workerUrl = settings.workerUrl.ifBlank { BuildConfig.SERVICE_URL }
+        workerUrl = if (BuildConfig.PERSONAL_MODE) settings.workerUrl else settings.workerUrl.ifBlank { BuildConfig.SERVICE_URL }
     ))
     val state = _state.asStateFlow()
 
@@ -78,23 +78,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun saveSettings(url: String, key: String, targetUrl: String) {
         settings.workerUrl = url
         if (key.isNotBlank()) settings.accessKey = key
+        settings.serviceVerified = false
         _state.value = _state.value.copy(
-            configured = settings.isConfigured,
+            configured = false,
             settingsOpen = true,
             demoMode = false,
             workerUrl = settings.workerUrl,
             message = null,
             error = null
         )
-        if (settings.isConfigured) launchTask {
+        if (settings.workerUrl.startsWith("https://") && settings.accessKey.isNotBlank()) launchTask {
             val health = api.health()
-            val config = if (targetUrl.isNotBlank() && targetUrl != _state.value.config?.targetUrl) api.setTarget(targetUrl) else api.config()
+            val books = api.books()
+            val selected = books.books.firstOrNull { it.id == books.currentBookId }
+            val config = when {
+                targetUrl.isNotBlank() && targetUrl != _state.value.config?.targetUrl -> api.setTarget(targetUrl)
+                selected != null -> configFromBook(selected)
+                else -> null
+            }
+            settings.serviceVerified = true
             _state.value = _state.value.copy(
+                configured = true,
                 config = config,
-                books = api.books(),
+                books = books,
                 settingsOpen = false,
+                bookScreen = if (selected == null) BookScreen.CONNECT else BookScreen.NONE,
                 serviceBuild = health.build,
-                message = if (targetUrl.isNotBlank()) "已切换记账表格" else "服务连接正常"
+                message = if (selected == null) null else if (targetUrl.isNotBlank()) "已切换记账表格" else "服务连接正常"
             )
         }
     }
@@ -105,15 +115,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.value = _state.value.copy(config = config, settingsOpen = true, message = "表头已同步修改到飞书")
     }
     fun enterDemo() {
+        val fields = listOf(
+            DynamicFieldDto("demo-date", "记账日期", 5, required = true),
+            DynamicFieldDto("demo-purpose", "用途", 1, primary = true, required = true),
+            DynamicFieldDto("demo-amount", "金额", 2, required = true),
+            DynamicFieldDto("demo-platform", "支付平台", 3, options = listOf("支付宝", "微信支付", "银行卡")),
+            DynamicFieldDto("demo-tags", "标签", 4, options = listOf("餐饮", "咖啡", "工作")),
+            DynamicFieldDto("demo-note", "备注", 1),
+            DynamicFieldDto("demo-project", "归属项目", 3, options = listOf("日常生活", "差旅报销"))
+        )
         _state.value = _state.value.copy(
             configured = true,
             settingsOpen = false,
             demoMode = true,
-            config = AppConfig(listOf("支付宝", "微信支付", "银行卡"), listOf("餐饮", "咖啡", "工作"), listOf("日常生活", "差旅报销")),
-            form = LedgerForm(
-                date = now(), purpose = "瑞幸咖啡 · 生椰拿铁", amount = "18.00",
-                paymentPlatform = "支付宝", tags = setOf("餐饮"), note = "上海静安寺店", project = "日常生活"
+            config = AppConfig(
+                paymentPlatforms = listOf("支付宝", "微信支付", "银行卡"),
+                tags = listOf("餐饮", "咖啡", "工作"),
+                projects = listOf("日常生活", "差旅报销"),
+                bookName = "演示账本",
+                tableName = "日常支出",
+                fields = fields
             ),
+            form = LedgerForm(dynamicValues = mapOf(
+                "demo-date" to now(),
+                "demo-purpose" to "瑞幸咖啡 · 生椰拿铁",
+                "demo-amount" to "18.00",
+                "demo-platform" to "支付宝",
+                "demo-tags" to "餐饮",
+                "demo-note" to "上海静安寺店",
+                "demo-project" to "日常生活"
+            )),
             message = "演示模式：AI 已识别支付结果，请确认后保存",
             error = null
         )
@@ -156,6 +187,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshConfig() = launchTask {
         val books = api.books()
+        if (books.currentBookId == null) {
+            _state.value = _state.value.copy(
+                books = books,
+                config = null,
+                settingsOpen = false,
+                bookScreen = BookScreen.CONNECT,
+                message = null
+            )
+            return@launchTask
+        }
         settings.currentBookId = books.currentBookId.orEmpty()
         val config = books.books.firstOrNull { it.id == books.currentBookId && it.fields.isNotEmpty() }?.let(::configFromBook) ?: api.config()
         val hydrated = books.copy(books = books.books.map { if (it.id == books.currentBookId) it.copy(fields = config.fields) else it })

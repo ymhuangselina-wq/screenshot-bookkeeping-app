@@ -25,6 +25,12 @@ class SecureSettings(context: Context) {
     var accessKey: String
         get() = preferences.getString("access_key", "") ?: ""
         set(value) = preferences.edit().putString("access_key", value.trim()).apply()
+    var serviceVerified: Boolean
+        get() {
+            val hasCredentials = workerUrl.startsWith("https://") && accessKey.isNotBlank()
+            return preferences.getBoolean("service_verified", hasCredentials)
+        }
+        set(value) = preferences.edit().putBoolean("service_verified", value).apply()
     var sessionToken: String
         get() = preferences.getString("session_token", "") ?: ""
         set(value) = preferences.edit().putString("session_token", value).apply()
@@ -46,7 +52,7 @@ class SecureSettings(context: Context) {
     var loginState: String
         get() = preferences.getString("login_state", "").orEmpty()
         set(value) = preferences.edit().putString("login_state", value).apply()
-    val isConfigured get() = if (BuildConfig.PERSONAL_MODE) workerUrl.startsWith("https://") && accessKey.isNotBlank() else sessionToken.isNotBlank() && accountId.isNotBlank()
+    val isConfigured get() = if (BuildConfig.PERSONAL_MODE) workerUrl.startsWith("https://") && accessKey.isNotBlank() && serviceVerified else sessionToken.isNotBlank() && accountId.isNotBlank()
     private val cacheScope get() = if (BuildConfig.PERSONAL_MODE) workerUrl else "account:$accountId"
     var cachedCatalog: String
         get() = preferences.getString("catalog:$cacheScope", "").orEmpty()

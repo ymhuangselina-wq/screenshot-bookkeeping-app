@@ -111,6 +111,10 @@ fun ScreenshotBookkeepingApp(vm: MainViewModel, onAccount: () -> Unit = {}) {
         onSurface = Color(0xFF282328), onSurfaceVariant = Color(0xFF716971),
         outline = Color(0xFF8D878D), outlineVariant = Color(0xFFDED7DC)
     ), typography = AppTypography, shapes = AppShapes) {
+        if (!state.configured && !state.demoMode) {
+            ServiceOnboardingScreen(state = state, connect = vm::saveSettings, demo = vm::enterDemo)
+            return@MaterialTheme
+        }
         Scaffold(
             topBar = {
                 AppBar(

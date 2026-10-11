@@ -48,6 +48,7 @@ import java.util.Date
 @Composable
 fun PersonalBookFlow(state: UiState, vm: MainViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val onboarding = state.config == null && state.books.books.isEmpty()
     LaunchedEffect(state.fieldSettingsUpdated, state.bookToastMessage) {
         val message = state.bookToastMessage ?: if (state.fieldSettingsUpdated) "字段设置已更新" else null
         if (message != null) {
@@ -56,7 +57,14 @@ fun PersonalBookFlow(state: UiState, vm: MainViewModel) {
             if (state.fieldSettingsUpdated) vm.consumeFieldSettingsUpdated()
         }
     }
-    BackHandler(enabled = !state.busy, onBack = if (state.bookScreen == BookScreen.MANAGE_FIELDS) vm::closeManagedFields else vm::closeBooks)
+    BackHandler(
+        enabled = !state.busy && !(onboarding && state.bookScreen == BookScreen.CONNECT),
+        onBack = when {
+            onboarding && state.bookScreen == BookScreen.MAP_FIELDS -> vm::startConnectBook
+            state.bookScreen == BookScreen.MANAGE_FIELDS -> vm::closeManagedFields
+            else -> vm::closeBooks
+        }
+    )
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
                 AnimatedContent(
@@ -113,14 +121,22 @@ fun PersonalBookFlow(state: UiState, vm: MainViewModel) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun BookPage(
     title: String,
-    back: () -> Unit,
+    back: (() -> Unit)?,
     providedScrollState: androidx.compose.foundation.ScrollState? = null,
     reorderState: ReorderGroupState? = null,
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
     val scrollState = providedScrollState ?: rememberScrollState()
-    Scaffold(topBar = { TopAppBar(title = { Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, "返回") } }, actions = actions) }) { padding ->
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
+            navigationIcon = {
+                if (back != null) IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, "返回") }
+            },
+            actions = actions
+        )
+    }) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding)
                 .then(if (reorderState != null) Modifier.reorderViewport(reorderState) else Modifier)
@@ -330,9 +346,28 @@ fun PersonalBookFlow(state: UiState, vm: MainViewModel) {
 
 private fun formatBookDate(value: Long): String = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(value))
 
-@Composable private fun ConnectBookPage(state: UiState, vm: MainViewModel) = BookPage("新增账本", vm::openBookManagement) {
+@Composable private fun ConnectBookPage(state: UiState, vm: MainViewModel) {
+    val onboarding = state.config == null && state.books.books.isEmpty()
+    BookPage(
+        title = if (onboarding) "连接记账表格" else "新增账本",
+        back = if (onboarding) null else vm::openBookManagement
+    ) {
+    if (onboarding) {
+        OnboardingProgress(activeStep = 2)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = .09f)
+        ) {
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CheckCircle, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(9.dp))
+                Text("记账服务已连接", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
     Text(
-        "粘贴飞书多维表格链接，读取后选择需要连接的数据表。",
+        if (onboarding) "最后一步：粘贴你的飞书多维表格链接，选择用于记账的数据表。" else "粘贴飞书多维表格链接，读取后选择需要连接的数据表。",
         fontSize = 13.sp,
         lineHeight = 20.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -381,6 +416,7 @@ private fun formatBookDate(value: Long): String = DateFormat.getDateTimeInstance
         }
     }
 }
+}
 
 @Composable private fun BookMappingPage(state: UiState, vm: MainViewModel, managing: Boolean) {
     val scrollState = rememberScrollState()
@@ -388,6 +424,7 @@ private fun formatBookDate(value: Long): String = DateFormat.getDateTimeInstance
     var reorderMode by rememberSaveable { mutableStateOf(false) }
     var reorderStartIds by remember { mutableStateOf(emptyList<String>()) }
     val currentBook = state.books.books.find { it.id == (state.managingBookId ?: state.books.currentBookId) }
+    val onboarding = !managing && state.config == null && state.books.books.isEmpty()
     val context = androidx.compose.ui.platform.LocalContext.current
     BookPage(
         title = if (managing) "字段设置" else "确认字段映射",
@@ -412,6 +449,7 @@ private fun formatBookDate(value: Long): String = DateFormat.getDateTimeInstance
             }
         }
     ) {
+    if (onboarding) OnboardingProgress(activeStep = 2)
     if (managing && state.fieldLayoutDrafts.isNotEmpty()) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
