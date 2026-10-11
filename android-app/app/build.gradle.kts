@@ -32,7 +32,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = if (personalMode) 16 else 36
-        versionName = if (personalMode) "1.1.0-order-detail-preview.4" else "1.1.0-invite"
+        versionName = if (personalMode) "1.1.0" else "1.1.0-invite"
         buildConfigField("String", "SERVICE_URL", "\"$serviceUrl\"")
         buildConfigField("boolean", "PERSONAL_MODE", personalMode.toString())
         buildConfigField("String", "PERSONAL_ACCESS_KEY", "\"$personalAccessKey\"")
