@@ -7,6 +7,19 @@ import android.net.Uri
 import android.widget.Toast
 
 object FeishuLinks {
+    fun recordUrl(tableUrl: String, recordId: String): String? {
+        if (recordId.isBlank()) return null
+        val parsed = Uri.parse(tableUrl)
+        val host = parsed.host.orEmpty()
+        if (host != "feishu.cn" && !host.endsWith(".feishu.cn") && !host.endsWith(".larksuite.com")) return null
+        return parsed.buildUpon().clearQuery().apply {
+            parsed.queryParameterNames.forEach { name ->
+                if (name != "record") parsed.getQueryParameters(name).forEach { value -> appendQueryParameter(name, value) }
+            }
+            appendQueryParameter("record", recordId)
+        }.build().toString()
+    }
+
     fun open(context: Context, url: String) {
         val parsed = Uri.parse(url)
         val host = parsed.host.orEmpty()

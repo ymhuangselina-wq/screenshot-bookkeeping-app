@@ -9,7 +9,7 @@ PORT=int(os.getenv("FC_SERVER_PORT","9000")); BUCKET=os.getenv("OSS_BUCKET","scr
 # function.  The public endpoint stays inside the same region and is much more
 # predictable for these tiny catalog/idempotency objects.
 ENDPOINT=os.getenv("OSS_ENDPOINT","oss-cn-hangzhou.aliyuncs.com").replace("-internal.aliyuncs.com",".aliyuncs.com")
-BUILD="20261011.2-order-detail-preview"
+BUILD="20261011.3-record-links-preview"
 DS=os.getenv("DASHSCOPE_BASE_URL","https://dashscope.aliyuncs.com/compatible-mode/v1").rstrip("/"); MODEL=os.getenv("DASHSCOPE_MODEL","qwen3-vl-plus")
 CATALOG_KEY="bookkeeping/catalog.json"; TOKEN={"value":None,"expires":0}; TOKEN_LOCK=threading.Lock()
 CATALOG_CACHE={"value":None,"expires":0}; CATALOG_LOCK=threading.Lock()
@@ -324,7 +324,7 @@ class Handler(BaseHTTPRequestHandler):
     body=self.body();key=body.get("clientRequestId")
     if not key:raise ApiError(400,"invalid_request_id","缺少请求 ID")
     idem=f"bookkeeping/idempotency/{key}.json";tick=time.time();old=store.get(idem);idem_read_ms=int((time.time()-tick)*1000)
-    if old:self.sendj(200,{"ok":True,"recordId":old["recordId"],"duplicate":True});return
+    if old:self.sendj(200,{"ok":True,"recordId":old["recordId"],"recordUrl":old.get("recordUrl"),"duplicate":True});return
     incoming=body.get("values") or {}
     if not incoming:raise ApiError(400,"empty_record","没有收到表单数据，请更新 APP 后重试")
     if not book.get("fields") or any(fid not in {x["fieldId"] for x in book.get("fields",[])} for fid in incoming):
@@ -346,7 +346,7 @@ class Handler(BaseHTTPRequestHandler):
     for f in book.get("fields",[]):
      if f.get("required") and f["displayName"] not in out:raise ApiError(400,"required_field_missing",f"“{f['displayName']}”为必填字段")
     if not out:raise ApiError(400,"empty_record","请至少填写一个字段")
-    tick=time.time();data=fs(f"/bitable/v1/apps/{book['appToken']}/tables/{book['tableId']}/records","POST",{"fields":out});feishu_ms=int((time.time()-tick)*1000);record=data["record"]["record_id"];tick=time.time();store.put(idem,{"recordId":record});idem_write_ms=int((time.time()-tick)*1000);print(json.dumps({"path":path,"timing":{"idempotencyReadMs":idem_read_ms,"feishuWriteMs":feishu_ms,"idempotencyWriteMs":idem_write_ms}},ensure_ascii=False),flush=True);self.sendj(201,{"ok":True,"recordId":record,"duplicate":False});return
+    tick=time.time();data=fs(f"/bitable/v1/apps/{book['appToken']}/tables/{book['tableId']}/records","POST",{"fields":out});feishu_ms=int((time.time()-tick)*1000);created=data["record"];record=created["record_id"];record_url=created.get("record_url");tick=time.time();store.put(idem,{"recordId":record,"recordUrl":record_url});idem_write_ms=int((time.time()-tick)*1000);print(json.dumps({"path":path,"timing":{"idempotencyReadMs":idem_read_ms,"feishuWriteMs":feishu_ms,"idempotencyWriteMs":idem_write_ms}},ensure_ascii=False),flush=True);self.sendj(201,{"ok":True,"recordId":record,"recordUrl":record_url,"duplicate":False});return
    rm=re.fullmatch(r"/books/([^/]+)",path)
    if rm and self.command=="DELETE":
     bid=urllib.parse.unquote(rm.group(1))

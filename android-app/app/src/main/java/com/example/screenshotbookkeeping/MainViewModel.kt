@@ -44,7 +44,8 @@ data class UiState(
     val manageFieldsReturnScreen: BookScreen = BookScreen.NONE,
     val managingBookId: String? = null,
     val operationMessage: String? = null,
-    val serviceBuild: String? = null
+    val serviceBuild: String? = null,
+    val lastSavedRecordUrl: String? = null
 )
 
 enum class BookScreen { NONE, LIST, MANAGE, CONNECT, MAP_FIELDS, MANAGE_FIELDS }
@@ -143,6 +144,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             error = null,
             requestId = UUID.randomUUID().toString(),
             saveSucceeded = false,
+            lastSavedRecordUrl = null,
             optionSuggestions = emptyMap(),
             toastMessage = "可以开始记下一笔了"
         )
@@ -182,6 +184,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             error = null,
             optionSuggestions = emptyMap(),
             saveSucceeded = false,
+            lastSavedRecordUrl = null,
             toastMessage = "已清空输入，正在同步当前账本的字段和选项…"
         )
         launchTask("正在同步飞书字段和选项…") {
@@ -590,6 +593,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             message = "已根据${notice.platform.ifBlank { "支付" }}通知填充，请确认后保存",
             error = null,
             saveSucceeded = false,
+            lastSavedRecordUrl = null,
             optionSuggestions = emptyMap(),
             toastMessage = "已填入 ¥$amount · ${notice.merchant}"
         )
@@ -714,7 +718,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         launchTask("正在写入飞书…") {
-            saveCurrentFormOrThrow()
+            val saved = saveCurrentFormOrThrow()
+            val recordUrl = saved.recordUrl ?: _state.value.config?.targetUrl?.let { FeishuLinks.recordUrl(it, saved.recordId) }
             _state.value = _state.value.copy(
                 form = dynamicEmptyForm(_state.value.config),
                 message = null,
@@ -722,16 +727,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 imageUri = null,
                 requestId = UUID.randomUUID().toString(),
                 optionSuggestions = emptyMap(),
-                saveSucceeded = true
+                saveSucceeded = true,
+                lastSavedRecordUrl = recordUrl
             )
         }
     }
 
-    private suspend fun saveCurrentFormOrThrow() {
+    private suspend fun saveCurrentFormOrThrow(): RecordResponse {
         validationError(_state.value)?.let { throw IllegalArgumentException(it) }
         val form = _state.value.form
         val dynamic = _state.value.config?.fields?.isNotEmpty() == true
-        api.save(RecordRequest(_state.value.requestId, form.date, form.purpose.trim(), form.amount.toDoubleOrNull() ?: 0.0, form.paymentPlatform, form.tags.toList(), form.note.ifBlank { null }, form.project.ifBlank { null }, if (dynamic) form.dynamicValues else null))
+        return api.save(RecordRequest(_state.value.requestId, form.date, form.purpose.trim(), form.amount.toDoubleOrNull() ?: 0.0, form.paymentPlatform, form.tags.toList(), form.note.ifBlank { null }, form.project.ifBlank { null }, if (dynamic) form.dynamicValues else null))
     }
 
     private fun validationError(state: UiState): String? {

@@ -54,7 +54,12 @@ import kotlinx.serialization.Serializable
     val paymentPlatform: String, val tags: List<String>, val note: String?, val project: String?,
     val values: Map<String, String>? = null
 )
-@Serializable data class RecordResponse(val ok: Boolean, val recordId: String, val duplicate: Boolean)
+@Serializable data class RecordResponse(
+    val ok: Boolean,
+    val recordId: String,
+    val duplicate: Boolean,
+    val recordUrl: String? = null
+)
 @Serializable data class ServiceHealth(val ok: Boolean, val build: String? = null)
 @Serializable data class ErrorEnvelope(val error: ApiErrorBody)
 @Serializable data class ApiErrorBody(val code: String, val message: String, val requestId: String? = null)

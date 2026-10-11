@@ -18,7 +18,7 @@ class GatewayRegressionTests(unittest.TestCase):
         store.get.return_value = None
         def upstream(path, method="GET", payload=None):
             if "/fields?" in path:return {"items": actual_fields or []}
-            return {"record": {"record_id": "rec-test"}}
+            return {"record": {"record_id": "rec-test", "record_url": "https://example.feishu.cn/base/app?table=table&record=rec-test"}}
         with patch.object(server, "auth"), patch.object(server, "Oss", return_value=store), patch.object(server, "catalog", return_value=copy.deepcopy(catalog)), patch.object(server, "fs", side_effect=upstream) as feishu:
             handler.run()
         return replies[-1], feishu
@@ -31,6 +31,8 @@ class GatewayRegressionTests(unittest.TestCase):
                 {"fieldId": "date", "displayName": "记录日期", "fieldType": 5, "required": True}]}]}
         reply, feishu = self.request(books, "/records", {"clientRequestId": "req", "values": {"name": "晚餐", "date": "2026-10-02 20:50:05"}}, "new")
         self.assertEqual(201, reply[0])
+        self.assertEqual("rec-test", reply[1]["recordId"])
+        self.assertIn("record=rec-test", reply[1]["recordUrl"])
         self.assertIn("new-app/tables/new-table/records", feishu.call_args.args[0])
         self.assertIsInstance(feishu.call_args.args[2]["fields"]["记录日期"], int)
 

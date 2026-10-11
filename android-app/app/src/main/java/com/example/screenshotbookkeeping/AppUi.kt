@@ -208,14 +208,14 @@ fun ScreenshotBookkeepingApp(vm: MainViewModel, onAccount: () -> Unit = {}) {
         if (state.saveSucceeded) SuccessDialog(
             demoMode = state.demoMode,
             tableName = state.config?.tableName,
-            tableUrl = state.config?.targetUrl,
+            recordUrl = state.lastSavedRecordUrl,
             dismiss = vm::dismissSuccess
         )
     }
 }
 
 @Composable
-private fun SuccessDialog(demoMode: Boolean, tableName: String?, tableUrl: String?, dismiss: () -> Unit) {
+private fun SuccessDialog(demoMode: Boolean, tableName: String?, recordUrl: String?, dismiss: () -> Unit) {
     val context = LocalContext.current
     AlertDialog(
         onDismissRequest = dismiss,
@@ -223,13 +223,13 @@ private fun SuccessDialog(demoMode: Boolean, tableName: String?, tableUrl: Strin
         title = { Text(if (demoMode) "演示保存成功" else "记账成功") },
         text = { Text(if (demoMode) "界面操作正常。接入云端服务后，这笔记录会写入飞书多维表格。" else "这笔记录已保存到“${tableName ?: "飞书多维表格"}”。") },
         confirmButton = {
-            if (!demoMode && !tableUrl.isNullOrBlank()) TextButton(onClick = {
+            if (!demoMode && !recordUrl.isNullOrBlank()) TextButton(onClick = {
                 dismiss()
-                FeishuLinks.open(context, tableUrl)
+                FeishuLinks.open(context, recordUrl)
             }) {
                 Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("在飞书查看数据")
+                Text("查看记录")
             }
         },
         dismissButton = { TextButton(onClick = dismiss) { Text("完成") } }
