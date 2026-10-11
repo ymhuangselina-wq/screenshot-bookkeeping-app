@@ -44,6 +44,7 @@ data class UiState(
     val manageFieldsReturnScreen: BookScreen = BookScreen.NONE,
     val managingBookId: String? = null,
     val operationMessage: String? = null,
+    val syncingOptionFieldId: String? = null,
     val serviceBuild: String? = null,
     val lastSavedRecordUrl: String? = null
 )
@@ -544,7 +545,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.value = before.copy(
             config = optimisticConfig,
             form = before.form.copy(dynamicValues = before.form.dynamicValues + (fieldId to selected)),
-            toastMessage = "已选中“$clean”，正在同步到飞书…"
+            syncingOptionFieldId = fieldId,
+            toastMessage = "已选中“$clean”，正在保存到飞书…"
         )
         launchTask("正在同步新选项…") {
             try {
@@ -585,7 +587,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.value = before.copy(
             config = optimisticConfig,
             form = before.form.copy(dynamicValues = before.form.dynamicValues + (fieldId to renamedSelection)),
-            toastMessage = "已显示新名称，正在同步到飞书…"
+            syncingOptionFieldId = fieldId,
+            toastMessage = "已显示新名称，正在保存到飞书…"
         )
         launchTask("正在同步选项名称…") {
             try {
@@ -922,7 +925,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 } catch (e: Exception) {
                     _state.value = _state.value.copy(loginRequired = e is ApiFailure && e.status == 401, error = e.message ?: "操作失败", message = null)
                 } finally {
-                    _state.value = _state.value.copy(busy = false, processingBookId = null, operationMessage = null)
+                    _state.value = _state.value.copy(
+                        busy = false,
+                        processingBookId = null,
+                        operationMessage = null,
+                        syncingOptionFieldId = null
+                    )
                 }
             }
         }

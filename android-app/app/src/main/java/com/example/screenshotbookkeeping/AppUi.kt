@@ -428,8 +428,8 @@ private fun LedgerScreen(state: UiState, update: (LedgerForm) -> Unit, save: () 
                                     when (field.fieldType) {
                                         1 -> AppTextField(value, change, field.displayName + if (field.required) " *" else "")
                                         2 -> AppTextField(value, change, field.displayName + if (field.required) " *" else "", amount = true)
-                                        3 -> FeishuSelectField(field.fieldId, field.displayName + if (field.required) " *" else "", value, field.options, !field.required, false, state.operationMessage?.contains("选项") == true, change, updateOptions, addOption, renameOption)
-                                        4 -> FeishuSelectField(field.fieldId, field.displayName + if (field.required) " *" else "", value, field.options, !field.required, true, state.operationMessage?.contains("选项") == true, change, updateOptions, addOption, renameOption)
+                                        3 -> FeishuSelectField(field.fieldId, field.displayName + if (field.required) " *" else "", value, field.options, !field.required, false, state.syncingOptionFieldId == field.fieldId, change, updateOptions, addOption, renameOption)
+                                        4 -> FeishuSelectField(field.fieldId, field.displayName + if (field.required) " *" else "", value, field.options, !field.required, true, state.syncingOptionFieldId == field.fieldId, change, updateOptions, addOption, renameOption)
                                         5 -> DateTimeField(value, field.displayName + if (field.required) " *" else "", false, change)
                                     }
                                 }
@@ -956,6 +956,11 @@ private fun FeishuOptionSheet(
     var editing by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<String?>(null) }
     var menuFor by remember { mutableStateOf<String?>(null) }
+    var pendingOptions by remember { mutableStateOf(emptyList<String>()) }
+    LaunchedEffect(options) {
+        pendingOptions = pendingOptions.filterNot { it in options }
+    }
+    val displayedOptions = (pendingOptions + options).distinct()
     val searchFocus = remember { FocusRequester() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var listReady by remember { mutableStateOf(false) }
@@ -963,8 +968,8 @@ private fun FeishuOptionSheet(
         withFrameNanos { }
         listReady = true
     }
-    val filtered = remember(options, query) {
-        if (query.isBlank()) options else options.filter { it.contains(query, ignoreCase = true) }
+    val filtered = remember(displayedOptions, query) {
+        if (query.isBlank()) displayedOptions else displayedOptions.filter { it.contains(query, ignoreCase = true) }
     }
     val choose: (String) -> Unit = { option ->
         onSelected(if (multiple) {
@@ -1053,8 +1058,12 @@ private fun FeishuOptionSheet(
                             val clean = query.trim()
                             when {
                                 clean.isEmpty() -> { createHint = true; searchFocus.requestFocus() }
-                                clean in options -> { choose(clean); query = "" }
-                                else -> { onAddOption(clean); query = "" }
+                                clean in displayedOptions -> { choose(clean); query = "" }
+                                else -> {
+                                    pendingOptions = listOf(clean) + pendingOptions
+                                    onAddOption(clean)
+                                    query = ""
+                                }
                             }
                         },
                         modifier = Modifier.size(48.dp),
@@ -1071,7 +1080,7 @@ private fun FeishuOptionSheet(
                 }
                 if (syncing) {
                     Text(
-                        "正在同步到飞书，完成后会自动选中…",
+                        "已更新，正在保存到飞书…",
                         Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
                         color = MaterialTheme.colorScheme.primary,
                         fontSize = 12.sp,
