@@ -50,6 +50,9 @@ data class UiState(
 
 enum class BookScreen { NONE, LIST, MANAGE, CONNECT, MAP_FIELDS, MANAGE_FIELDS }
 
+internal fun promoteSelectedOption(option: String, current: String): String =
+    (listOf(option) + current.split("、").filter { it.isNotBlank() && it != option }).joinToString("、")
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val settings = SecureSettings(application)
     private val api = ApiClient(settings)
@@ -307,7 +310,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val current = _state.value
         val bookId = current.switchPromptBookId ?: return
         if (current.imageUri == null) {
-            _state.value = current.copy(toastMessage = "没有可重新识别的截图，请重新选择截图")
+            switchBook(bookId, false, current.openFieldsAfterSwitch)
+            _state.value = _state.value.copy(toastMessage = "已切换账本；原截图已不可用，请重新选择截图")
             return
         }
         switchBook(bookId, false, current.openFieldsAfterSwitch, current.imageUri)
@@ -513,7 +517,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val config = books.books.firstOrNull { it.id == books.currentBookId }?.let(::configFromBook) ?: api.config()
         val field = config.fields.find { it.fieldId == fieldId }
         val current = _state.value.form.dynamicValues[fieldId].orEmpty()
-        val selected = if (field?.fieldType == 4) (current.split("、").filter { it.isNotBlank() } + option).distinct().joinToString("、") else option
+        val selected = if (field?.fieldType == 4) promoteSelectedOption(option, current) else option
+        settings.rememberOptions(fieldId, listOf(option))
         val remaining = _state.value.optionSuggestions[fieldId].orEmpty().filterNot { it == option }
         _state.value = _state.value.copy(
             books = books, config = config,
@@ -532,8 +537,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             })
             val current = _state.value.form.dynamicValues[fieldId].orEmpty()
             val selected = if (field?.fieldType == 4) {
-                (current.split("、").filter { it.isNotBlank() } + option).distinct().joinToString("、")
+                promoteSelectedOption(option, current)
             } else option
+            settings.rememberOptions(fieldId, listOf(option))
             _state.value = _state.value.copy(
                 books = books,
                 config = orderedConfig,
@@ -541,6 +547,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 toastMessage = "已添加并选中“$option”"
             )
         } catch (error: Exception) { throw error }
+    }
+    fun renameFieldOption(fieldId: String, oldOption: String, newOption: String) = launchTask("正在重命名飞书选项…") {
+        val clean = newOption.trim()
+        if (clean.isBlank() || clean == oldOption) return@launchTask
+        val books = api.renameCurrentFieldOption(fieldId, oldOption, clean)
+        val config = books.books.firstOrNull { it.id == books.currentBookId }?.let(::configFromBook) ?: api.config()
+        val current = _state.value.form.dynamicValues[fieldId].orEmpty()
+        val field = config.fields.find { it.fieldId == fieldId }
+        val renamedSelection = if (field?.fieldType == 4) {
+            current.split("、").filter(String::isNotBlank).map { if (it == oldOption) clean else it }.distinct().joinToString("、")
+        } else if (current == oldOption) clean else current
+        settings.rememberOptions(fieldId, listOf(clean))
+        _state.value = _state.value.copy(
+            books = books,
+            config = config,
+            form = _state.value.form.copy(dynamicValues = _state.value.form.dynamicValues + (fieldId to renamedSelection)),
+            toastMessage = "已重命名为“$clean”"
+        )
     }
     fun updateFieldOptions(fieldId: String, options: List<String>) = launchTask("正在同步飞书选项…") {
         val existing = _state.value.config?.fields?.find { it.fieldId == fieldId }?.options.orEmpty()

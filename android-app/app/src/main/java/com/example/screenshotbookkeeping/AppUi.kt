@@ -127,7 +127,7 @@ fun ScreenshotBookkeepingApp(vm: MainViewModel, onAccount: () -> Unit = {}) {
             snackbarHost = {}
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
-                LedgerScreen(state, vm::updateForm, vm::save, vm::retryParse, vm::openBooks, vm::manageCurrentFields, vm::moveMainField, vm::persistMainFieldOrder, vm::restoreMainFieldOrder, vm::updateFieldOptions, vm::addFieldOption)
+                LedgerScreen(state, vm::updateForm, vm::save, vm::retryParse, vm::openBooks, vm::manageCurrentFields, vm::moveMainField, vm::persistMainFieldOrder, vm::restoreMainFieldOrder, vm::updateFieldOptions, vm::addFieldOption, vm::renameFieldOption)
                 if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
                 SnackbarHost(
                     hostState = snackbarHostState,
@@ -180,7 +180,12 @@ fun ScreenshotBookkeepingApp(vm: MainViewModel, onAccount: () -> Unit = {}) {
             AlertDialog(
                 onDismissRequest = vm::cancelSwitch,
                 title = { Text("当前截图还未保存") },
-                text = { Text("切换到“$targetName”后，可以使用原截图按新账本字段重新识别。") },
+                text = {
+                    Text(
+                        if (state.imageUri != null) "切换到“$targetName”后，将使用原截图按新账本字段重新识别。"
+                        else "切换到“$targetName”后，需要重新选择截图进行识别。"
+                    )
+                },
                 confirmButton = {
                     Column(
                         Modifier.fillMaxWidth(),
@@ -190,7 +195,7 @@ fun ScreenshotBookkeepingApp(vm: MainViewModel, onAccount: () -> Unit = {}) {
                             onClick = vm::reparseAndSwitch,
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             shape = RoundedCornerShape(14.dp)
-                        ) { Text("切换并重新识别", fontWeight = FontWeight.Bold) }
+                        ) { Text(if (state.imageUri != null) "切换并重新识别" else "切换账本", fontWeight = FontWeight.Bold) }
                         OutlinedButton(
                             onClick = vm::saveAndSwitch,
                             modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -276,7 +281,7 @@ private fun CompactIconButton(onClick: () -> Unit, enabled: Boolean, content: @C
 }
 
 @Composable
-private fun LedgerScreen(state: UiState, update: (LedgerForm) -> Unit, save: () -> Unit, retry: () -> Unit, openBooks: () -> Unit, manageFields: () -> Unit, moveField: (String, Int) -> Unit, persistOrder: () -> Unit, restoreOrder: (List<String>) -> Unit, updateOptions: (String, List<String>) -> Unit, addOption: (String, String) -> Unit) {
+private fun LedgerScreen(state: UiState, update: (LedgerForm) -> Unit, save: () -> Unit, retry: () -> Unit, openBooks: () -> Unit, manageFields: () -> Unit, moveField: (String, Int) -> Unit, persistOrder: () -> Unit, restoreOrder: (List<String>) -> Unit, updateOptions: (String, List<String>) -> Unit, addOption: (String, String) -> Unit, renameOption: (String, String, String) -> Unit) {
     val form = state.form
     val currentBook = state.books.books.find { it.id == state.books.currentBookId }
     val scrollState = rememberScrollState()
@@ -423,8 +428,8 @@ private fun LedgerScreen(state: UiState, update: (LedgerForm) -> Unit, save: () 
                                     when (field.fieldType) {
                                         1 -> AppTextField(value, change, field.displayName + if (field.required) " *" else "")
                                         2 -> AppTextField(value, change, field.displayName + if (field.required) " *" else "", amount = true)
-                                        3 -> FeishuSelectField(field.fieldId, field.displayName + if (field.required) " *" else "", value, field.options, !field.required, false, state.operationMessage?.contains("选项") == true, change, updateOptions, addOption)
-                                        4 -> FeishuSelectField(field.fieldId, field.displayName + if (field.required) " *" else "", value, field.options, !field.required, true, state.operationMessage?.contains("选项") == true, change, updateOptions, addOption)
+                                        3 -> FeishuSelectField(field.fieldId, field.displayName + if (field.required) " *" else "", value, field.options, !field.required, false, state.operationMessage?.contains("选项") == true, change, updateOptions, addOption, renameOption)
+                                        4 -> FeishuSelectField(field.fieldId, field.displayName + if (field.required) " *" else "", value, field.options, !field.required, true, state.operationMessage?.contains("选项") == true, change, updateOptions, addOption, renameOption)
                                         5 -> DateTimeField(value, field.displayName + if (field.required) " *" else "", false, change)
                                     }
                                 }
@@ -874,7 +879,8 @@ private fun FeishuSelectField(
     syncing: Boolean,
     onChange: (String) -> Unit,
     updateOptions: (String, List<String>) -> Unit,
-    addOption: (String, String) -> Unit
+    addOption: (String, String) -> Unit,
+    renameOption: (String, String, String) -> Unit
 ) {
     var open by remember { mutableStateOf(false) }
     val selected = value.split("、").filter { it.isNotBlank() }.toSet()
@@ -907,7 +913,8 @@ private fun FeishuSelectField(
             if (!multiple) open = false
         },
         onOptionsChanged = { updateOptions(fieldId, it) },
-        onAddOption = { addOption(fieldId, it) }
+        onAddOption = { addOption(fieldId, it) },
+        onRenameOption = { old, new -> renameOption(fieldId, old, new) }
     )
 }
 
@@ -941,7 +948,8 @@ private fun FeishuOptionSheet(
     onDismiss: () -> Unit,
     onSelected: (Set<String>) -> Unit,
     onOptionsChanged: (List<String>) -> Unit,
-    onAddOption: (String) -> Unit
+    onAddOption: (String) -> Unit,
+    onRenameOption: (String, String) -> Unit
 ) {
     var query by remember { mutableStateOf("") }
     var createHint by remember { mutableStateOf(false) }
@@ -1165,18 +1173,33 @@ private fun FeishuOptionSheet(
     }
     editing?.let { original ->
         var renamed by remember(original) { mutableStateOf(original) }
+        val clean = renamed.trim()
+        val renameError = when {
+            clean.isBlank() -> "选项名称不能为空"
+            clean == original -> "请输入一个新名称"
+            clean in options -> "这个名称已经存在"
+            else -> null
+        }
         AlertDialog(
             onDismissRequest = { editing = null },
             title = { Text("重命名选项") },
-            text = { OutlinedTextField(renamed, { renamed = it }, singleLine = true, label = { Text("选项名称") }) },
+            text = {
+                OutlinedTextField(
+                    renamed,
+                    { renamed = it },
+                    singleLine = true,
+                    label = { Text("选项名称") },
+                    isError = renameError != null,
+                    supportingText = { renameError?.let { Text(it) } }
+                )
+            },
             confirmButton = { TextButton(onClick = {
-                val clean = renamed.trim()
-                if (clean.isNotEmpty() && (clean == original || clean !in options)) {
-                    onOptionsChanged(options.map { if (it == original) clean else it })
+                if (renameError == null) {
+                    onRenameOption(original, clean)
                     if (original in selected) onSelected(selected - original + clean)
                     editing = null
                 }
-            }) { Text("保存") } },
+            }, enabled = renameError == null && !syncing) { Text("保存") } },
             dismissButton = { TextButton(onClick = { editing = null }) { Text("取消") } }
         )
     }
@@ -1636,6 +1659,6 @@ private fun LedgerScreenPreview() {
         message = "AI 已识别支付结果，请确认后保存"
     )
     MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFFF47B20), secondary = Color(0xFF7A4E2D))) {
-        LedgerScreen(state = state, update = {}, save = {}, retry = {}, openBooks = {}, manageFields = {}, moveField = { _, _ -> }, persistOrder = {}, restoreOrder = {}, updateOptions = { _, _ -> }, addOption = { _, _ -> })
+        LedgerScreen(state = state, update = {}, save = {}, retry = {}, openBooks = {}, manageFields = {}, moveField = { _, _ -> }, persistOrder = {}, restoreOrder = {}, updateOptions = { _, _ -> }, addOption = { _, _ -> }, renameOption = { _, _, _ -> })
     }
 }
