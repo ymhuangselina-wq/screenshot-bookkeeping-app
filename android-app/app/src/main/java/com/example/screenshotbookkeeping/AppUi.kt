@@ -205,18 +205,33 @@ fun ScreenshotBookkeepingApp(vm: MainViewModel, onAccount: () -> Unit = {}) {
             dismissButton = { TextButton(onClick = vm::cancelFieldsConfirmation) { Text("再检查一下") } }
         )
         if (state.settingsOpen) SettingsDialog(state, vm::saveSettings, vm::enterDemo, vm::closeSettings, onAccount)
-        if (state.saveSucceeded) SuccessDialog(state.demoMode, state.config?.tableName, vm::dismissSuccess, vm::newManual)
+        if (state.saveSucceeded) SuccessDialog(
+            demoMode = state.demoMode,
+            tableName = state.config?.tableName,
+            tableUrl = state.config?.targetUrl,
+            dismiss = vm::dismissSuccess
+        )
     }
 }
 
 @Composable
-private fun SuccessDialog(demoMode: Boolean, tableName: String?, dismiss: () -> Unit, newEntry: () -> Unit) {
+private fun SuccessDialog(demoMode: Boolean, tableName: String?, tableUrl: String?, dismiss: () -> Unit) {
+    val context = LocalContext.current
     AlertDialog(
         onDismissRequest = dismiss,
         icon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
         title = { Text(if (demoMode) "演示保存成功" else "记账成功") },
         text = { Text(if (demoMode) "界面操作正常。接入云端服务后，这笔记录会写入飞书多维表格。" else "这笔记录已保存到“${tableName ?: "飞书多维表格"}”。") },
-        confirmButton = { TextButton(onClick = newEntry) { Text("再记一笔") } },
+        confirmButton = {
+            if (!demoMode && !tableUrl.isNullOrBlank()) TextButton(onClick = {
+                dismiss()
+                FeishuLinks.open(context, tableUrl)
+            }) {
+                Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("在飞书查看数据")
+            }
+        },
         dismissButton = { TextButton(onClick = dismiss) { Text("完成") } }
     )
 }
