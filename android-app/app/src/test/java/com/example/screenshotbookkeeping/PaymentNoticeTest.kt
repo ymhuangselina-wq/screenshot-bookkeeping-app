@@ -12,6 +12,7 @@ class PaymentNoticeTest {
     }
     @Test fun supportsInboxLinesWithoutMainText() {
         assertEquals("35", PaymentNotificationBridge.parseContent("com.unionpay", "云闪付", "", lines = listOf("付款成功 35元"))?.amount)
+        assertEquals("18.80", PaymentNotificationBridge.parseContent("com.eg.android.AlipayGphone", "支付宝", "", lines = listOf("支付成功", "实付￥18.80"))?.amount)
     }
     @Test fun rejectsRefundsAndUnrelatedMessages() {
         assertNull(PaymentNotificationBridge.parseContent("com.tencent.mm", "微信支付", "退款成功 ￥25.00"))

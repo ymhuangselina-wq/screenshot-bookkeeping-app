@@ -8,6 +8,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -70,8 +71,24 @@ object PaymentNotificationBridge {
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty().trim()
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty().trim()
         val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty().trim()
-        val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES).orEmpty().map { it.toString() }
+        val lines = buildList {
+            addAll(extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES).orEmpty().map { it.toString() })
+            addExtraText(extras, Notification.EXTRA_TITLE_BIG)
+            addExtraText(extras, Notification.EXTRA_SUB_TEXT)
+            addExtraText(extras, Notification.EXTRA_SUMMARY_TEXT)
+            addExtraText(extras, Notification.EXTRA_INFO_TEXT)
+            extras.getParcelableArray(Notification.EXTRA_MESSAGES).orEmpty()
+                .filterIsInstance<Bundle>()
+                .forEach { message ->
+                    addExtraText(message, "text")
+                    addExtraText(message, "sender")
+                }
+        }
         return parseContent(sbn.packageName, title, text, bigText, lines)
+    }
+
+    private fun MutableList<String>.addExtraText(extras: Bundle, key: String) {
+        extras.getCharSequence(key)?.toString()?.trim()?.takeIf(String::isNotBlank)?.let(::add)
     }
 
     internal fun parseContent(packageName: String, title: String, text: String, bigText: String = "", lines: List<String> = emptyList()): PaymentNotice? {

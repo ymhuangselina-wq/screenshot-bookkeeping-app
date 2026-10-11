@@ -1415,6 +1415,7 @@ private fun SettingsDialog(state: UiState, save: (String, String, String) -> Uni
                     )
                     SettingsPage.NOTIFICATION -> NotificationSettingsDetail(
                         enabled = listenerEnabled,
+                        onTest = { PaymentNotificationBridge.showTestPrompt(context) },
                         onOpenPermission = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -1486,11 +1487,13 @@ private fun SettingsListRow(icon: ImageVector, title: String, subtitle: String, 
 }
 
 @Composable
-private fun NotificationSettingsDetail(enabled: Boolean, onOpenPermission: () -> Unit) {
+private fun NotificationSettingsDetail(enabled: Boolean, onTest: () -> Unit, onOpenPermission: () -> Unit) {
     SettingsDetailBody(
         title = if (enabled) "已开启" else "支付完成，少填几项",
-        description = if (enabled) "下次识别到支付或转账通知后，你会收到记账提醒。" else "在本机识别支付宝、微信、云闪付和常见银行的支付或转账通知。",
-        notes = listOf("支持的通知" to "支付、转账、银行卡消费", "填入方式" to "打开表单后确认", "隐私" to "只在本机筛选通知内容"),
+        description = if (enabled) "通知读取和提醒权限均已开启。可以先发送一条测试提醒，确认系统没有拦截。" else "在本机识别支付宝、微信、云闪付和常见银行的支付或转账通知。",
+        notes = listOf("支持的通知" to "支付、转账、银行卡消费", "工作方式" to "支付 App 发出通知后识别", "隐私" to "只在本机筛选通知内容"),
+        secondaryAction = if (enabled) "发送测试提醒" else null,
+        onSecondaryAction = onTest,
         action = if (enabled) "关闭该记账方式" else "开启系统通知提醒",
         onAction = onOpenPermission
     )
@@ -1546,7 +1549,16 @@ private fun ShareScreenshotSettingsDetail() {
 }
 
 @Composable
-private fun SettingsDetailBody(title: String, description: String, notes: List<Pair<String, String>>, guide: List<String> = emptyList(), action: String, onAction: () -> Unit) {
+private fun SettingsDetailBody(
+    title: String,
+    description: String,
+    notes: List<Pair<String, String>>,
+    guide: List<String> = emptyList(),
+    secondaryAction: String? = null,
+    onSecondaryAction: () -> Unit = {},
+    action: String,
+    onAction: () -> Unit
+) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp)) {
         Text(title, fontSize = 21.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold)
         Text(description, Modifier.padding(top = 8.dp, bottom = 24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 20.sp)
@@ -1576,6 +1588,12 @@ private fun SettingsDetailBody(title: String, description: String, notes: List<P
         }
         Spacer(Modifier.height(24.dp))
         Button(onClick = onAction, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(15.dp)) { Text(action, fontWeight = FontWeight.Bold) }
+        secondaryAction?.let { label ->
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(onClick = onSecondaryAction, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(15.dp)) {
+                Text(label, fontWeight = FontWeight.SemiBold)
+            }
+        }
     }
 }
 

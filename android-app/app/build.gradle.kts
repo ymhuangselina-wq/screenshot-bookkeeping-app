@@ -31,8 +31,8 @@ android {
         applicationId = if (personalMode) "com.example.screenshotbookkeeping" else "com.example.screenshotbookkeeping.invite"
         minSdk = 26
         targetSdk = 35
-        versionCode = if (personalMode) 14 else 36
-        versionName = if (personalMode) "1.1.0-order-detail-preview.2" else "1.1.0-invite"
+        versionCode = if (personalMode) 15 else 36
+        versionName = if (personalMode) "1.1.0-order-detail-preview.3" else "1.1.0-invite"
         buildConfigField("String", "SERVICE_URL", "\"$serviceUrl\"")
         buildConfigField("boolean", "PERSONAL_MODE", personalMode.toString())
         buildConfigField("String", "PERSONAL_ACCESS_KEY", "\"$personalAccessKey\"")
