@@ -527,44 +527,81 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             toastMessage = "已新增并选中“$option”"
         )
     }
-    fun addFieldOption(fieldId: String, option: String) = launchTask("正在添加飞书选项…") {
-        try {
-            val books = api.addCurrentFieldOption(fieldId, option)
-            val freshConfig = books.books.firstOrNull { it.id == books.currentBookId }?.let(::configFromBook) ?: api.config()
-            val field = freshConfig.fields.find { it.fieldId == fieldId }
-            val orderedConfig = freshConfig.copy(fields = freshConfig.fields.map { item ->
-                if (item.fieldId == fieldId) item.copy(options = listOf(option) + item.options.filterNot { it == option }) else item
-            })
-            val current = _state.value.form.dynamicValues[fieldId].orEmpty()
-            val selected = if (field?.fieldType == 4) {
-                promoteSelectedOption(option, current)
-            } else option
-            settings.rememberOptions(fieldId, listOf(option))
-            _state.value = _state.value.copy(
-                books = books,
-                config = orderedConfig,
-                form = _state.value.form.copy(dynamicValues = _state.value.form.dynamicValues + (fieldId to selected)),
-                toastMessage = "已添加并选中“$option”"
-            )
-        } catch (error: Exception) { throw error }
+    fun addFieldOption(fieldId: String, option: String) {
+        if (_state.value.busy) {
+            _state.value = _state.value.copy(toastMessage = _state.value.operationMessage ?: "当前操作正在处理，请稍候")
+            return
+        }
+        val clean = option.trim()
+        if (clean.isBlank()) return
+        val before = _state.value
+        val field = before.config?.fields?.find { it.fieldId == fieldId } ?: return
+        val current = before.form.dynamicValues[fieldId].orEmpty()
+        val selected = if (field.fieldType == 4) promoteSelectedOption(clean, current) else clean
+        val optimisticConfig = before.config?.copy(fields = before.config.fields.map { item ->
+            if (item.fieldId == fieldId) item.copy(options = listOf(clean) + item.options.filterNot { it == clean }) else item
+        })
+        _state.value = before.copy(
+            config = optimisticConfig,
+            form = before.form.copy(dynamicValues = before.form.dynamicValues + (fieldId to selected)),
+            toastMessage = "已选中“$clean”，正在同步到飞书…"
+        )
+        launchTask("正在同步新选项…") {
+            try {
+                val books = api.addCurrentFieldOption(fieldId, clean)
+                val freshConfig = books.books.firstOrNull { it.id == books.currentBookId }?.let(::configFromBook) ?: api.config()
+                val orderedConfig = freshConfig.copy(fields = freshConfig.fields.map { item ->
+                    if (item.fieldId == fieldId) item.copy(options = listOf(clean) + item.options.filterNot { it == clean }) else item
+                })
+                settings.rememberOptions(fieldId, listOf(clean))
+                _state.value = _state.value.copy(
+                    books = books,
+                    config = orderedConfig,
+                    form = _state.value.form.copy(dynamicValues = _state.value.form.dynamicValues + (fieldId to selected)),
+                    toastMessage = "已添加并选中“$clean”"
+                )
+            } catch (error: Exception) {
+                _state.value = before
+                throw error
+            }
+        }
     }
-    fun renameFieldOption(fieldId: String, oldOption: String, newOption: String) = launchTask("正在重命名飞书选项…") {
+    fun renameFieldOption(fieldId: String, oldOption: String, newOption: String) {
+        if (_state.value.busy) {
+            _state.value = _state.value.copy(toastMessage = _state.value.operationMessage ?: "当前操作正在处理，请稍候")
+            return
+        }
         val clean = newOption.trim()
-        if (clean.isBlank() || clean == oldOption) return@launchTask
-        val books = api.renameCurrentFieldOption(fieldId, oldOption, clean)
-        val config = books.books.firstOrNull { it.id == books.currentBookId }?.let(::configFromBook) ?: api.config()
-        val current = _state.value.form.dynamicValues[fieldId].orEmpty()
-        val field = config.fields.find { it.fieldId == fieldId }
-        val renamedSelection = if (field?.fieldType == 4) {
+        if (clean.isBlank() || clean == oldOption) return
+        val before = _state.value
+        val field = before.config?.fields?.find { it.fieldId == fieldId } ?: return
+        val current = before.form.dynamicValues[fieldId].orEmpty()
+        val renamedSelection = if (field.fieldType == 4) {
             current.split("、").filter(String::isNotBlank).map { if (it == oldOption) clean else it }.distinct().joinToString("、")
         } else if (current == oldOption) clean else current
-        settings.rememberOptions(fieldId, listOf(clean))
-        _state.value = _state.value.copy(
-            books = books,
-            config = config,
-            form = _state.value.form.copy(dynamicValues = _state.value.form.dynamicValues + (fieldId to renamedSelection)),
-            toastMessage = "已重命名为“$clean”"
+        val optimisticConfig = before.config?.copy(fields = before.config.fields.map { item ->
+            if (item.fieldId == fieldId) item.copy(options = item.options.map { if (it == oldOption) clean else it }) else item
+        })
+        _state.value = before.copy(
+            config = optimisticConfig,
+            form = before.form.copy(dynamicValues = before.form.dynamicValues + (fieldId to renamedSelection)),
+            toastMessage = "已显示新名称，正在同步到飞书…"
         )
+        launchTask("正在同步选项名称…") {
+            try {
+                val books = api.renameCurrentFieldOption(fieldId, oldOption, clean)
+                val config = books.books.firstOrNull { it.id == books.currentBookId }?.let(::configFromBook) ?: api.config()
+                _state.value = _state.value.copy(
+                    books = books,
+                    config = config,
+                    form = _state.value.form.copy(dynamicValues = _state.value.form.dynamicValues + (fieldId to renamedSelection)),
+                    toastMessage = "已重命名为“$clean”"
+                )
+            } catch (error: Exception) {
+                _state.value = before
+                throw error
+            }
+        }
     }
     fun updateFieldOptions(fieldId: String, options: List<String>) = launchTask("正在同步飞书选项…") {
         val existing = _state.value.config?.fields?.find { it.fieldId == fieldId }?.options.orEmpty()
