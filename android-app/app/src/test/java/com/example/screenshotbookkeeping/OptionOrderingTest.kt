@@ -13,4 +13,20 @@ class OptionOrderingTest {
     fun existingOptionMovesToFrontWithoutDuplication() {
         assertEquals("交通、餐饮、购物", promoteSelectedOption("交通", "餐饮、交通、购物"))
     }
+
+    @Test
+    fun renamedOptionMovesToFront() {
+        assertEquals(
+            listOf("打车", "餐饮", "购物"),
+            renameOptionToFront(listOf("餐饮", "交通", "购物"), "交通", "打车")
+        )
+    }
+
+    @Test
+    fun renamedOptionDoesNotCreateDuplicate() {
+        assertEquals(
+            listOf("打车", "餐饮", "购物"),
+            renameOptionToFront(listOf("餐饮", "交通", "打车", "购物"), "交通", "打车")
+        )
+    }
 }

@@ -54,6 +54,9 @@ enum class BookScreen { NONE, LIST, MANAGE, CONNECT, MAP_FIELDS, MANAGE_FIELDS }
 internal fun promoteSelectedOption(option: String, current: String): String =
     (listOf(option) + current.split("、").filter { it.isNotBlank() && it != option }).joinToString("、")
 
+internal fun renameOptionToFront(options: List<String>, oldOption: String, newOption: String): List<String> =
+    listOf(newOption) + options.filterNot { it == oldOption || it == newOption }
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val settings = SecureSettings(application)
     private val api = ApiClient(settings)
@@ -582,7 +585,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             current.split("、").filter(String::isNotBlank).map { if (it == oldOption) clean else it }.distinct().joinToString("、")
         } else if (current == oldOption) clean else current
         val optimisticConfig = before.config?.copy(fields = before.config.fields.map { item ->
-            if (item.fieldId == fieldId) item.copy(options = item.options.map { if (it == oldOption) clean else it }) else item
+            if (item.fieldId == fieldId) item.copy(options = renameOptionToFront(item.options, oldOption, clean)) else item
         })
         _state.value = before.copy(
             config = optimisticConfig,
@@ -593,7 +596,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         launchTask("正在同步选项名称…") {
             try {
                 val books = api.renameCurrentFieldOption(fieldId, oldOption, clean)
-                val config = books.books.firstOrNull { it.id == books.currentBookId }?.let(::configFromBook) ?: api.config()
+                val freshConfig = books.books.firstOrNull { it.id == books.currentBookId }?.let(::configFromBook) ?: api.config()
+                val config = freshConfig.copy(fields = freshConfig.fields.map { item ->
+                    if (item.fieldId == fieldId) item.copy(options = renameOptionToFront(item.options, oldOption, clean)) else item
+                })
+                settings.rememberOptions(fieldId, listOf(clean))
                 _state.value = _state.value.copy(
                     books = books,
                     config = config,
